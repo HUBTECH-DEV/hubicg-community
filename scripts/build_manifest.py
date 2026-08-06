@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PATHS = [
     "LICENSE", "LICENSES/AGPL-3.0-only.txt", "LICENSING.md", "NOTICE",
     "THIRD_PARTY_NOTICES.md", "pyproject.toml", "src/hubicg/__init__.py",
-    "src/hubicg/cli.py",
+    "src/hubicg/cli.py", "scripts/build_sbom.py",
 ]
 
 def content() -> str:

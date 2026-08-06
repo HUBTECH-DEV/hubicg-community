@@ -15,24 +15,10 @@ jobs:
         with: {python-version: "3.12"}
       - run: python -m pip install build
       - run: python -m build
+      - run: python scripts/build_sbom.py
       - name: Checksums
         shell: bash
-        run: cd dist && sha256sum * > SHA256SUMS
-      - name: Minimal SPDX SBOM
-        shell: bash
-        run: |
-          printf '%s\n' \
-            'SPDXVersion: SPDX-2.3' \
-            'DataLicense: CC0-1.0' \
-            'SPDXID: SPDXRef-DOCUMENT' \
-            'DocumentName: hubicg-0.1.0' \
-            'DocumentNamespace: https://github.com/HUBTECH-DEV/hubicg-community/releases/v0.1.0' \
-            'Creator: Organization: HUBTECH CONSULTORIA E DESENVOLVIMENTO LTDA' \
-            'PackageName: hubicg' \
-            'SPDXID: SPDXRef-Package-hubicg' \
-            'PackageVersion: 0.1.0' \
-            'PackageLicenseDeclared: AGPL-3.0-only' \
-            'PackageLicenseConcluded: AGPL-3.0-only' > dist/hubicg-0.1.0.spdx
+        run: cd dist && sha256sum hubicg-*.* > SHA256SUMS
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: hubicg-0.1.0-release-candidate

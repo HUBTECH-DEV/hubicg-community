@@ -26,6 +26,18 @@ jobs:
       - run: python -m pytest
       - run: hubicg --root . validate
       - run: python -m build
+      - name: Candidate checksums and SBOM
+        if: matrix.os == 'ubuntu-latest' && matrix.python == '3.12'
+        shell: bash
+        run: |
+          python scripts/build_sbom.py
+          cd dist && sha256sum hubicg-*.* > SHA256SUMS
+      - name: Candidate artifacts
+        if: matrix.os == 'ubuntu-latest' && matrix.python == '3.12'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: hubicg-0.1.0-release-candidate
+          path: dist/
   dependency-review:
     # GitHub only supports dependency review after the repository is public or
     # GitHub Advanced Security is enabled. It activates automatically at the
