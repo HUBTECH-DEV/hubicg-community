@@ -12,6 +12,11 @@ until every mandatory item has recorded evidence:
 - final review by qualified Brazilian counsel;
 - approved baseline commit and explicit publication authorization.
 
+Dependency review and CodeQL are intentionally conditional on public
+visibility because GitHub Advanced Security is not enabled for this private
+release-candidate repository. Both workflows activate automatically when the
+repository becomes public.
+
 The owner has authorized publication of materials that pass this gate. That
 authorization does not make an unchecked item true and does not authorize
 signing legal instruments on anyone's behalf.
