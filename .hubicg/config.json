@@ -1,0 +1,7 @@
+{
+  "schemaVersion": "1.0",
+  "language": "auto",
+  "modelPolicy": "environment-aware",
+  "humanApprovalRequired": true,
+  "history": {"enabled": false, "privacy": "deployment-owner"}
+}

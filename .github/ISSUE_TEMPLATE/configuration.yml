@@ -1,0 +1,20 @@
+name: Configuration or role proposal
+description: Propose a portable configuration, role or guardrail.
+title: "[Config]: "
+labels: ["configuration"]
+body:
+  - type: textarea
+    id: intent
+    attributes: {label: Intended behavior}
+    validations: {required: true}
+  - type: textarea
+    id: evidence
+    attributes: {label: Validation and evidence}
+    validations: {required: true}
+  - type: checkboxes
+    id: safe
+    attributes:
+      label: Safety
+      options:
+        - label: This proposal contains no secrets, personal data or private prompt history.
+          required: true
