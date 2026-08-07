@@ -3,12 +3,12 @@
   "gate": "p0-provenance",
   "owner": "Paulo Cesar Benjamin Junior",
   "status": "approved",
-  "reviewedAt": "2026-08-07T05:26:59-03:00",
-  "approvedBaseline": "9660829f6fafbbed1e97285d5be9ebe857e7b93b",
+  "reviewedAt": "2026-08-07T06:15:59-03:00",
+  "approvedBaseline": "9ab9685671e639ff2790deb03a89339ae6b8f24b",
   "aliasesConfirmed": true,
   "mailmap": ".mailmap",
   "manifest": "docs/legal/PROVENANCE-MANIFEST.csv",
   "thirdPartyNoticesConfirmed": true,
   "sensitiveContentReviewConfirmed": true,
-  "approvalEvidence": "Owner approved all P0 gates and authorized publication on 2026-08-07"
+  "approvalEvidence": "Owner approved the consolidated Node.js 24 CI maintenance and its publication on 2026-08-07"
 }

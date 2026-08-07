@@ -238,3 +238,33 @@ def test_similar_login_does_not_bypass_cla_gate(tmp_path: Path) -> None:
     )
     assert result.returncode != 0
     assert "CLA required" in result.stderr
+
+
+def test_official_dependabot_passes_cla_gate_as_automation(tmp_path: Path) -> None:
+    root = Path(__file__).parents[1]
+    event = tmp_path / "event.json"
+    event.write_text(json.dumps({"pull_request": {"user": {
+        "login": "dependabot[bot]", "id": 49699333, "type": "Bot"
+    }}}), encoding="utf-8")
+    result = subprocess.run(
+        [sys.executable, str(root / "scripts" / "check_cla.py")],
+        capture_output=True, text=True, check=False,
+        env={**os.environ, "GITHUB_EVENT_PATH": str(event)},
+    )
+    assert result.returncode == 0
+    assert "source=trusted-automation" in result.stdout
+
+
+def test_dependabot_lookalike_does_not_bypass_cla_gate(tmp_path: Path) -> None:
+    root = Path(__file__).parents[1]
+    event = tmp_path / "event.json"
+    event.write_text(json.dumps({"pull_request": {"user": {
+        "login": "dependabot[bot]", "id": 123, "type": "Bot"
+    }}}), encoding="utf-8")
+    result = subprocess.run(
+        [sys.executable, str(root / "scripts" / "check_cla.py")],
+        capture_output=True, text=True, check=False,
+        env={**os.environ, "GITHUB_EVENT_PATH": str(event)},
+    )
+    assert result.returncode != 0
+    assert "CLA required" in result.stderr
