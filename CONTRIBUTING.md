@@ -39,6 +39,11 @@ documented rollback path.
 Required checks, maintainer review and the CLA gate must pass. A contribution
 is promoted through review, CI and merge; it does not confer maintainer status.
 
+Machine-generated dependency updates from GitHub's official Dependabot account
+do not accept a CLA. The CLA gate recognizes only the expected bot login,
+numeric account ID and account type. These pull requests remain subject to all
+technical checks, provenance controls and explicit maintainer review.
+
 Maintainers may request additional provenance, threat analysis, migration or
 compatibility evidence. A contribution is merged only when its scope belongs
 to Community, tests and documentation match the implementation, and every
