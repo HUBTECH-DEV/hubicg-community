@@ -14,6 +14,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from .filenames import load_policy, repository_paths, validate_paths
+from .role_store import RoleRecord, SQLiteRoleRepository
+
 EXIT_INVALID, EXIT_USAGE, EXIT_APPROVAL, EXIT_EXTERNAL = 1, 2, 3, 4
 
 
@@ -164,6 +167,83 @@ def roles_verify(ctx: Context, _args: argparse.Namespace) -> None:
     emit(ctx, {"status": "valid", "roles": len(files)}, f"roles=valid count={len(files)}")
 
 
+def role_database(ctx: Context) -> SQLiteRoleRepository:
+    return SQLiteRoleRepository(state_path(ctx, "state", "roles.db"))
+
+
+def role_payload(record: RoleRecord) -> dict[str, str]:
+    return {
+        "id": record.role_id,
+        "name": record.name,
+        "source": record.source,
+        "locale": record.locale,
+        "version": record.version,
+        "contentHash": record.content_hash,
+    }
+
+
+def roles_db_init(ctx: Context, _args: argparse.Namespace) -> None:
+    repository = role_database(ctx)
+    fts5 = repository.initialize()
+    relative = repository.path.relative_to(ctx.root)
+    emit(
+        ctx,
+        {"status": "initialized", "database": str(relative), "fts5": fts5},
+        f"roles_database=initialized file={relative} fts5={str(fts5).lower()}",
+    )
+
+
+def roles_db_import(ctx: Context, args: argparse.Namespace) -> None:
+    files = role_files(ctx)
+    errors = [error for path in files for error in role_errors(path)]
+    if errors:
+        raise HubICGError("; ".join(errors))
+    repository = role_database(ctx)
+    repository.initialize()
+    records = [repository.upsert(read_json(path), args.source) for path in files]
+    emit(
+        ctx,
+        {"status": "imported", "source": args.source, "roles": [role_payload(record) for record in records]},
+        f"roles=imported count={len(records)} source={args.source}",
+    )
+
+
+def roles_search(ctx: Context, args: argparse.Namespace) -> None:
+    database_path = state_path(ctx, "state", "roles.db")
+    if database_path.is_file():
+        records, engine = role_database(ctx).search(args.query, args.limit)
+        roles = [role_payload(record) for record in records]
+    else:
+        tokens = [token for token in args.query.casefold().split() if token]
+        candidates = []
+        for path in role_files(ctx):
+            data = read_json(path)
+            searchable = f"{data.get('id', '')} {data.get('name', '')} {data.get('instructions', '')}".casefold()
+            score = sum(searchable.count(token) for token in tokens)
+            if score:
+                candidates.append((score, data))
+        candidates.sort(key=lambda item: (-item[0], str(item[1].get("name", "")).casefold()))
+        roles = [
+            {"id": data.get("id"), "name": data.get("name"), "source": "project", "locale": data.get("locale", "und")}
+            for _, data in candidates[:args.limit]
+        ]
+        engine = "files"
+    human = "\n".join(f"{role['id']}\t{role['name']}\t{role['source']}" for role in roles) or "no roles"
+    emit(ctx, {"query": args.query, "engine": engine, "roles": roles}, human)
+
+
+def files_verify(ctx: Context, _args: argparse.Namespace) -> None:
+    try:
+        policy = load_policy(ctx.root)
+    except ValueError as error:
+        raise HubICGError(str(error)) from error
+    paths = repository_paths(ctx.root)
+    errors = validate_paths(paths, policy)
+    if errors:
+        raise HubICGError("; ".join(errors))
+    emit(ctx, {"status": "valid", "files": len(paths)}, f"filenames=valid files={len(paths)}")
+
+
 def candidate(value: str) -> tuple[Path, Any]:
     path = Path(value).expanduser().resolve()
     if not path.is_file() or path.is_symlink():
@@ -274,6 +354,15 @@ def build_parser() -> argparse.ArgumentParser:
     roles = commands.add_parser("roles").add_subparsers(dest="roles_command", required=True)
     roles.add_parser("list").set_defaults(handler=roles_list)
     roles.add_parser("verify").set_defaults(handler=roles_verify)
+    role_search = roles.add_parser("search")
+    role_search.add_argument("query")
+    role_search.add_argument("--limit", type=int, default=10)
+    role_search.set_defaults(handler=roles_search)
+    role_db = roles.add_parser("db").add_subparsers(dest="roles_db_command", required=True)
+    role_db.add_parser("init").set_defaults(handler=roles_db_init)
+    role_import = role_db.add_parser("import")
+    role_import.add_argument("--source", choices=("custom", "project", "official"), default="project")
+    role_import.set_defaults(handler=roles_db_import)
     config = commands.add_parser("config").add_subparsers(dest="config_command", required=True)
     diff = config.add_parser("diff"); diff.add_argument("candidate"); diff.set_defaults(handler=config_diff)
     propose = config.add_parser("propose"); propose.add_argument("candidate"); propose.set_defaults(handler=config_propose)
@@ -284,6 +373,8 @@ def build_parser() -> argparse.ArgumentParser:
     git.add_parser("status").set_defaults(handler=git_status)
     evidence = commands.add_parser("evidence").add_subparsers(dest="evidence_command", required=True)
     evidence.add_parser("verify").set_defaults(handler=evidence_verify)
+    files = commands.add_parser("files").add_subparsers(dest="files_command", required=True)
+    files.add_parser("verify").set_defaults(handler=files_verify)
     return result
 
 

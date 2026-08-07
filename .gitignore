@@ -8,6 +8,7 @@ dist/
 .DS_Store
 .hubicg/proposals/
 .hubicg/history/
+.hubicg/state/
 *.pem
 *.key
 .env

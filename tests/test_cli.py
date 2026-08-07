@@ -31,6 +31,43 @@ def test_validate_and_roles(tmp_path: Path) -> None:
     assert json.loads(result.stdout)["roles"][0]["id"] == "one"
 
 
+def test_role_database_import_and_search(tmp_path: Path) -> None:
+    root = project(tmp_path)
+    initialized = run(root, "--json", "roles", "db", "init")
+    assert initialized.returncode == 0
+    assert json.loads(initialized.stdout)["status"] == "initialized"
+    imported = run(root, "roles", "db", "import", "--source", "custom")
+    assert imported.returncode == 0
+    result = run(root, "--json", "roles", "search", "useful")
+    assert result.returncode == 0
+    payload = json.loads(result.stdout)
+    assert payload["engine"] in {"fts5", "fallback"}
+    assert payload["roles"][0]["id"] == "one"
+    assert payload["roles"][0]["source"] == "custom"
+
+
+def test_role_search_uses_files_before_database_is_initialized(tmp_path: Path) -> None:
+    root = project(tmp_path)
+    result = run(root, "--json", "roles", "search", "useful")
+    assert result.returncode == 0
+    payload = json.loads(result.stdout)
+    assert payload["engine"] == "files"
+    assert payload["roles"][0]["id"] == "one"
+
+
+def test_filename_policy_rejects_non_portable_name(tmp_path: Path) -> None:
+    root = project(tmp_path)
+    (root / "arquivo com espaço.txt").write_text("test", encoding="utf-8")
+    result = run(root, "files", "verify")
+    assert result.returncode == 1
+    assert "non-portable characters" in result.stderr
+
+
+def test_filename_policy_accepts_portable_project(tmp_path: Path) -> None:
+    root = project(tmp_path)
+    assert run(root, "files", "verify").returncode == 0
+
+
 def test_proposal_requires_exact_approval(tmp_path: Path) -> None:
     root = project(tmp_path)
     candidate = tmp_path / "candidate.json"

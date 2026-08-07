@@ -11,6 +11,8 @@ tools and IDEs.
 
 - a Python 3.11+ CLI with no runtime dependencies;
 - deterministic configuration and role validation;
+- portable and privacy-aware filename validation;
+- local-first role indexing and search using SQLite;
 - human-approved configuration proposals;
 - prompt-history and evidence integrity checks;
 - read-only Git status;
@@ -28,6 +30,10 @@ python -m pip install .
 hubicg --root . validate
 hubicg --root . roles list
 hubicg --root . roles verify
+hubicg --root . roles search arquitetura
+hubicg --root . roles db init
+hubicg --root . roles db import --source project
+hubicg --root . files verify
 hubicg --root . status
 hubicg --root . config diff examples/config.proposed.json
 hubicg --root . config propose examples/config.proposed.json
@@ -47,6 +53,8 @@ Use `--json` before the command for machine-readable output.
 - [Support](SUPPORT.md)
 - [Versioning and compatibility](docs/VERSIONING.md)
 - [Community and Enterprise boundary](docs/EDITIONS.md)
+- [Role storage and selection study](docs/architecture/ROLE-STORAGE-SELECTION-STUDY.md)
+- [ADR-001: hybrid role catalog](docs/adr/ADR-001-hybrid-role-catalog.md)
 - [Third-party notices](THIRD_PARTY_NOTICES.md)
 
 ## Licensing

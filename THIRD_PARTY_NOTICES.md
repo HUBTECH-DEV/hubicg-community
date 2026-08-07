@@ -5,6 +5,7 @@ The HubICG Python runtime has no third-party runtime dependencies in v0.1.0.
 | Component | Purpose | License / terms | Treatment |
 |---|---|---|---|
 | Python | Runtime and tests | PSF License | External prerequisite |
+| SQLite | Optional local role index through Python `sqlite3` | Public domain | Supplied by the Python/platform build; not vendored |
 | setuptools | Build backend | MIT | Build dependency only |
 | pytest | Tests | MIT | Development dependency only |
 | actions/checkout | CI checkout | MIT | GitHub Action by reference |

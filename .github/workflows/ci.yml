@@ -25,6 +25,7 @@ jobs:
       - run: python -m pip install .
       - run: python -m pytest
       - run: hubicg --root . validate
+      - run: hubicg --root . files verify
       - run: python -m build
       - name: Candidate checksums and SBOM
         if: matrix.os == 'ubuntu-latest' && matrix.python == '3.12'

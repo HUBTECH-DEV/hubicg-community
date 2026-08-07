@@ -6,6 +6,9 @@
 
 - Community governance and legal-readiness documents.
 - Auditable HubICG CLI foundation and cross-platform CI.
+- Portable, privacy-aware filename policy and CI gate.
+- Local-first SQLite role index, import and search foundation.
+- Role storage/selection study and hybrid-catalog architecture decision.
 
 ## [0.1.0] — pending legal baseline
 

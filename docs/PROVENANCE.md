@@ -8,6 +8,7 @@ Baseline prepared on 2026-08-06 in the clean repository
 | Paths | Origin | Treatment |
 |---|---|---|
 | `src/`, `tests/`, `.hubicg/`, `examples/`, `scripts/` | New implementation authored for the HubICG public candidate | Candidate for assignment to HubTech; human provenance declaration still requires signature |
+| `docs/architecture/`, `docs/adr/` | New architecture analysis and decisions for the candidate | Sources are linked in the study; legal/provenance review remains required |
 | Governance, licensing and project-health Markdown | New project-specific drafting | Legal templates require counsel review; no third-party code copied |
 | `LICENSES/AGPL-3.0-only.txt` | GitHub license API canonical AGPL-3.0 text | Preserved verbatim; license text is not claimed as HubTech authorship |
 | `.github/workflows/` | New workflow composition referencing GitHub Actions | Referenced Actions retain their upstream licenses; pinning review required before release |
