@@ -1,6 +1,7 @@
 name: CodeQL
 
 on:
+  workflow_dispatch:
   pull_request:
   push:
     branches: [main]
@@ -14,8 +15,7 @@ permissions:
 
 jobs:
   analyze:
-    # Code scanning activates at public visibility; the private release
-    # candidate does not have GitHub Advanced Security enabled.
+    # Code scanning is required for the public Community repository.
     if: github.event.repository.visibility == 'public'
     runs-on: ubuntu-latest
     steps:

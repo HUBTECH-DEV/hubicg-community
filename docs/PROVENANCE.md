@@ -1,7 +1,8 @@
-# Provenance record for the public release candidate
+# Provenance record for the public Community baseline
 
-Baseline prepared on 2026-08-06 in the clean repository
-`HUBTECH-DEV/hubicg-community-public-rc`.
+The baseline was prepared on 2026-08-06 in the clean staging repository
+`HUBTECH-DEV/hubicg-community-public-rc`, then promoted on 2026-08-07 to the
+official public repository `HUBTECH-DEV/hubicg-community`.
 
 ## Origin classes
 
