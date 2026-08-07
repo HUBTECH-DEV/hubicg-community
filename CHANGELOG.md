@@ -9,6 +9,10 @@
 - Portable, privacy-aware filename policy and CI gate.
 - Local-first SQLite role index, import and search foundation.
 - Local role storage decision and exploratory study of remote alternatives.
+- Public role schema, explained multilingual selection and conflict handling.
+- Integrity-checked role backup, deterministic export and approved restore.
+- Hash-chained evidence for approved configuration changes.
+- Reproducible release build, isolated wheel smoke test and build provenance.
 
 ## [0.1.0] — pending legal baseline
 

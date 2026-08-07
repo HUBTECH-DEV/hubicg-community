@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import sqlite3
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+from .role_schema import validate_role
 
 SCHEMA_VERSION = 1
 
@@ -32,9 +36,10 @@ class SQLiteRoleRepository:
 
     def connect(self) -> sqlite3.Connection:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        connection = sqlite3.connect(self.path)
+        connection = sqlite3.connect(self.path, timeout=5)
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA foreign_keys = ON")
+        connection.execute("PRAGMA busy_timeout = 5000")
         connection.execute("PRAGMA journal_mode = WAL")
         return connection
 
@@ -83,6 +88,9 @@ class SQLiteRoleRepository:
     def upsert(self, payload: dict[str, Any], source: str) -> RoleRecord:
         if source not in {"custom", "project", "official"}:
             raise ValueError(f"unsupported role source: {source}")
+        errors = validate_role(payload)
+        if errors:
+            raise ValueError("; ".join(errors))
         role_id = str(payload["id"]).strip()
         name = str(payload["name"]).strip()
         instructions = str(payload["instructions"]).strip()
@@ -115,15 +123,91 @@ class SQLiteRoleRepository:
         return record
 
     def list(self) -> list[RoleRecord]:
-        self.initialize()
+        if not self.path.is_file():
+            self.initialize()
         with self.connect() as connection:
             rows = connection.execute(
                 "SELECT role_id, name, instructions, source, locale, version, content_hash FROM roles ORDER BY name, role_id"
             ).fetchall()
         return [RoleRecord(**dict(row)) for row in rows]
 
+    def payloads(self) -> list[dict[str, Any]]:
+        if not self.path.is_file():
+            self.initialize()
+        with self.connect() as connection:
+            rows = connection.execute(
+                "SELECT payload_json, source, content_hash FROM roles ORDER BY name, role_id"
+            ).fetchall()
+        result = []
+        for row in rows:
+            payload = json.loads(row["payload_json"])
+            payload["_source"] = row["source"]
+            payload["_contentHash"] = row["content_hash"]
+            result.append(payload)
+        return result
+
+    def status(self) -> dict[str, Any]:
+        if not self.path.is_file():
+            return {"initialized": False, "schemaVersion": None, "roles": 0, "integrity": "not-initialized"}
+        with self.connect() as connection:
+            version = connection.execute("SELECT MAX(version) FROM schema_metadata").fetchone()[0]
+            roles = connection.execute("SELECT COUNT(*) FROM roles").fetchone()[0]
+            integrity = connection.execute("PRAGMA integrity_check").fetchone()[0]
+            fts5 = connection.execute(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'roles_fts'"
+            ).fetchone()[0] == 1
+        return {
+            "initialized": True,
+            "schemaVersion": version,
+            "roles": roles,
+            "integrity": integrity,
+            "fts5": fts5,
+        }
+
+    def backup(self, target: Path) -> None:
+        if not self.path.is_file():
+            raise ValueError("role database is not initialized")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with self.connect() as source, sqlite3.connect(target) as destination:
+            source.execute("PRAGMA wal_checkpoint(FULL)")
+            source.backup(destination)
+            if destination.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
+                raise ValueError("role database backup integrity check failed")
+
+    def restore(self, source: Path) -> None:
+        if not source.is_file() or source.is_symlink():
+            raise ValueError("role database backup is not a regular file")
+        uri = f"file:{source.as_posix()}?mode=ro"
+        with sqlite3.connect(uri, uri=True) as candidate:
+            if candidate.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
+                raise ValueError("role database backup integrity check failed")
+            version = candidate.execute("SELECT MAX(version) FROM schema_metadata").fetchone()[0]
+            if version != SCHEMA_VERSION:
+                raise ValueError(f"unsupported role database schema: {version}")
+
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        descriptor, temp_name = tempfile.mkstemp(prefix=".roles-restore.", dir=self.path.parent)
+        os.close(descriptor)
+        temp_path = Path(temp_name)
+        try:
+            with sqlite3.connect(uri, uri=True) as candidate, sqlite3.connect(temp_path) as destination:
+                candidate.backup(destination)
+            if self.path.exists():
+                with self.connect() as current:
+                    current.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                    current.execute("PRAGMA journal_mode = DELETE")
+            os.replace(temp_path, self.path)
+            for suffix in ("-wal", "-shm"):
+                sidecar = Path(str(self.path) + suffix)
+                if sidecar.exists():
+                    sidecar.unlink()
+        finally:
+            if temp_path.exists():
+                temp_path.unlink()
+
     def search(self, query: str, limit: int = 10) -> tuple[list[RoleRecord], str]:
-        self.initialize()
+        if not self.path.is_file():
+            self.initialize()
         tokens = [token for token in re.findall(r"[^\W_]+", query.casefold(), flags=re.UNICODE) if token]
         if not tokens:
             return [], "fallback"

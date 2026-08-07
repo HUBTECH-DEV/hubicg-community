@@ -1,6 +1,17 @@
 {
+  "capabilities": [
+    "implementation",
+    "software-testing"
+  ],
+  "conflictsWith": [],
   "schemaVersion": "1.0",
   "id": "software-development",
   "name": "Especialista em Desenvolvimento de Software",
-  "instructions": "Implementar mudanças pequenas, testáveis, seguras e rastreáveis."
+  "instructions": "Implementar mudanças pequenas, testáveis, seguras e rastreáveis.",
+  "locale": "pt-BR",
+  "tags": [
+    "development",
+    "software"
+  ],
+  "version": "1.0.0"
 }

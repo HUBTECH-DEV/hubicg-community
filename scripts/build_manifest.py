@@ -12,7 +12,15 @@ PATHS = [
     "LICENSE", "LICENSES/AGPL-3.0-only.txt", "LICENSING.md", "NOTICE",
     "THIRD_PARTY_NOTICES.md", "pyproject.toml", "src/hubicg/__init__.py",
     "src/hubicg/cli.py", "src/hubicg/filenames.py", "src/hubicg/role_store.py",
+    "src/hubicg/role_schema.py", "src/hubicg/role_selection.py",
+    "src/hubicg/change_evidence.py", "schemas/role-v1.schema.json",
     ".hubicg/filename-policy.json", "scripts/build_sbom.py",
+    "scripts/build_checksums.py", "scripts/build_provenance.py",
+    "scripts/normalize_sdist.py", "scripts/verify_release.py",
+    "scripts/verify_reproducible_build.py",
+    ".hubicg/roles/git-devops.json", ".hubicg/roles/software-development.json",
+    ".hubicg/roles/solution-architecture.json", ".github/workflows/ci.yml",
+    ".github/workflows/release.yml", "Makefile",
 ]
 
 def content() -> str:

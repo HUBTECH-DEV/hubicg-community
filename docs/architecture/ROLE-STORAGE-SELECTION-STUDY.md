@@ -170,17 +170,19 @@ HubICG. Fonte: [MongoDB Vector Search](https://www.mongodb.com/docs/vector-searc
 - comandos `hubicg roles db init`, `hubicg roles db import` e
   `hubicg roles search`;
 - FTS5 detectado em execução com fallback local;
+- schema público e validação compatível entre arquivos e banco;
+- seleção determinística com normalização de caixa/acentos, filtros, motivos,
+  precedência de origem e conflitos declarados;
+- backup com integridade, exportação determinística e restauração aprovada;
 - diretório de estado excluído do Git;
 - nenhuma conexão remota ou credencial incorporada.
 
 ## 8. Próximos incrementos priorizados
 
-1. versionar o schema público da role e regras de compatibilidade;
-2. definir pesos e explicabilidade do seletor local, com corpus de avaliação
-   multilíngue;
-3. testar concorrência entre IDEs e bloqueio do arquivo SQLite;
-4. implementar migração, backup, exportação e rollback do banco local;
-5. submeter o tratamento de histórico/telemetria a revisão jurídica e de
+1. ampliar o corpus multilíngue e calibrar pesos do seletor com evidência;
+2. testar concorrência prolongada entre múltiplas IDEs;
+3. criar a primeira migração somente quando houver schema v2 real;
+4. submeter o tratamento de histórico/telemetria a revisão jurídica e de
    privacidade antes de qualquer implementação.
 
 ## 9. Pesquisa sem prioridade

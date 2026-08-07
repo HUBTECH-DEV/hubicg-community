@@ -13,7 +13,10 @@ tools and IDEs.
 - deterministic configuration and role validation;
 - portable and privacy-aware filename validation;
 - local-first role indexing and search using SQLite;
+- explained selection and conflict-aware composition of local roles;
+- verified local backup, export and approved rollback;
 - human-approved configuration proposals;
+- hash-chained evidence for applied configuration changes;
 - prompt-history and evidence integrity checks;
 - read-only Git status;
 - machine-readable JSON output and stable exit codes.
@@ -31,8 +34,11 @@ hubicg --root . validate
 hubicg --root . roles list
 hubicg --root . roles verify
 hubicg --root . roles search arquitetura
+hubicg --root . roles select "arquitetura idioma:pt" --count 2
 hubicg --root . roles db init
 hubicg --root . roles db import --source project
+hubicg --root . roles db backup
+hubicg --root . roles db export
 hubicg --root . files verify
 hubicg --root . status
 hubicg --root . config diff examples/config.proposed.json
@@ -40,6 +46,7 @@ hubicg --root . config propose examples/config.proposed.json
 # Review the proposal, then use its printed ID:
 hubicg --root . config apply --approval <proposal-id>
 hubicg --root . evidence verify
+hubicg --root . evidence changes verify
 ```
 
 Mutating commands require explicit input and never write outside `.hubicg/`.
@@ -55,6 +62,10 @@ Use `--json` before the command for machine-readable output.
 - [Community and Enterprise boundary](docs/EDITIONS.md)
 - [Role storage and selection study](docs/architecture/ROLE-STORAGE-SELECTION-STUDY.md)
 - [ADR-001: local role storage](docs/adr/ADR-001-local-role-storage.md)
+- [Role schema and compatibility](docs/ROLE-SCHEMA-COMPATIBILITY.md)
+- [Installation](docs/INSTALLATION.md)
+- [Upgrade and rollback](docs/UPGRADE-ROLLBACK.md)
+- [P1 readiness](docs/P1-READINESS.md)
 - [Third-party notices](THIRD_PARTY_NOTICES.md)
 
 ## Licensing

@@ -5,9 +5,11 @@
 - Python installation on Linux, macOS and Windows;
 - configuration/role validation and status;
 - local SQLite role import and text search with a compatible fallback;
+- explained local role selection, source precedence and conflict detection;
+- integrity-checked role backup, export and explicitly approved restore;
 - portable and privacy-aware filename validation;
 - configuration diff, proposal and explicit approval;
-- history structure and checksum-manifest verification;
+- hash-chained change evidence, history structure and manifest verification;
 - read-only Git status;
 - governance, security, contribution and licensing foundation.
 
@@ -19,7 +21,8 @@
 | macOS | CI required | CI required |
 | Windows | CI required | CI required |
 
-The matrix becomes release evidence only after all six GitHub Actions jobs pass.
+Every release candidate must pass all six jobs and the reproducible-build job.
+The PR records the run and artifact IDs for its exact candidate commit.
 
 ## Planned, not implemented
 
@@ -31,8 +34,9 @@ compaction, token optimization, guardrail orchestration and adaptive history.
 
 Back up `.hubicg/`, install the new wheel, run `hubicg validate`, then exercise
 read-only commands. To roll back, reinstall the prior wheel and restore the
-compatible `.hubicg/` backup. The role database schema is initialized
-explicitly with `hubicg roles db init`; future schema migrations will require
-their own compatibility and rollback evidence.
+compatible role backup using the exact approval ID. See
+`docs/UPGRADE-ROLLBACK.md`. Future schema migrations require their own
+compatibility and reverse-migration evidence.
 
-The official tag, artifacts and checksums are produced only after the legal gate.
+The candidate artifacts and checksums are generated privately. The official
+tag and GitHub Release are produced only after the legal gate.

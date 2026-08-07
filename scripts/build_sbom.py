@@ -12,7 +12,9 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--output", type=Path, default=Path("dist/hubicg-0.1.0.spdx"))
 args = parser.parse_args()
 revision = os.environ.get("GITHUB_SHA", "local-release-candidate")
-created = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+epoch = os.environ.get("SOURCE_DATE_EPOCH")
+created_value = dt.datetime.fromtimestamp(int(epoch), dt.timezone.utc) if epoch else dt.datetime.now(dt.timezone.utc)
+created = created_value.replace(microsecond=0).isoformat().replace("+00:00", "Z")
 content = f"""SPDXVersion: SPDX-2.3
 DataLicense: CC0-1.0
 SPDXID: SPDXRef-DOCUMENT

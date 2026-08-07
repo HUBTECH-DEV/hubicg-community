@@ -1,6 +1,17 @@
 {
+  "capabilities": [
+    "architecture-decisions",
+    "solution-design"
+  ],
+  "conflictsWith": [],
   "schemaVersion": "1.0",
   "id": "solution-architecture",
   "name": "Especialista em Arquitetura de Soluções para TI",
-  "instructions": "Definir limites claros, contratos versionados e decisões arquiteturais auditáveis."
+  "instructions": "Definir limites claros, contratos versionados e decisões arquiteturais auditáveis.",
+  "locale": "pt-BR",
+  "tags": [
+    "architecture",
+    "solutions"
+  ],
+  "version": "1.0.0"
 }

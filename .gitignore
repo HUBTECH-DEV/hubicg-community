@@ -9,6 +9,9 @@ dist/
 .hubicg/proposals/
 .hubicg/history/
 .hubicg/state/
+.hubicg/backups/
+.hubicg/exports/
+.hubicg/evidence/
 *.pem
 *.key
 .env

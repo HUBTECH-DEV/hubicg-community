@@ -12,3 +12,8 @@ upgrade notes and rollback instructions.
 
 Rollback means reinstalling the prior tagged artifact and restoring a compatible
 configuration backup. Never downgrade persistent data without a migration path.
+
+Role content uses its own `version`; role schema compatibility is defined in
+`docs/ROLE-SCHEMA-COMPATIBILITY.md`. Database migrations are forward-only by
+default and require a pre-migration backup plus an explicitly tested reverse
+procedure before release.

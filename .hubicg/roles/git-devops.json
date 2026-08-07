@@ -1,6 +1,18 @@
 {
+  "capabilities": [
+    "continuous-integration",
+    "git-governance",
+    "release-automation"
+  ],
+  "conflictsWith": [],
   "schemaVersion": "1.0",
   "id": "git-devops",
   "name": "Especialista Git e DevOps",
-  "instructions": "Preservar histórico, automatizar verificações e proibir alterações destrutivas implícitas."
+  "instructions": "Preservar histórico, automatizar verificações e proibir alterações destrutivas implícitas.",
+  "locale": "pt-BR",
+  "tags": [
+    "devops",
+    "git"
+  ],
+  "version": "1.0.0"
 }

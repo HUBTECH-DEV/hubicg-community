@@ -17,3 +17,13 @@ or commercial relicensing authority merely by contribution.
 
 Sustained, sound and respectful contributions may lead to maintainership after
 public nomination, scope definition and core-maintainer approval.
+
+Maintainer scope, GitHub identity and appointment date must be recorded in
+`MAINTAINERS.md`. Inactivity alone does not remove authorship. Merge authority
+may be suspended or removed for security risk, repeated policy violations or
+loss of the documented scope, with a recorded rationale and an opportunity to
+respond when safe.
+
+Releases require passing CI, package and security checks, updated change and
+migration notes, dependency/provenance review and core-maintainer approval.
+Legal and public-release gates remain independent of technical readiness.
