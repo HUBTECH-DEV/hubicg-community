@@ -15,7 +15,7 @@
 | Community health | governance, contribution, security, support and templates | Implemented in candidate |
 | Cross-platform CI | Linux, macOS and Windows; Python 3.11/3.12 | Enforced |
 | Merge policy | squash-only, update branch allowed and merged branches deleted | Applied |
-| Public-only GitHub controls | ruleset, CodeQL, dependency review, secret scanning and private vulnerability reporting | Apply and verify during promotion |
+| Public-only GitHub controls | ruleset, CodeQL, dependency review, secret scanning and private vulnerability reporting | Configured; public workflow validation required before tag |
 
 ## P1.2 — Local role storage and selection
 

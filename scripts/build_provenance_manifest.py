@@ -30,7 +30,7 @@ def defaults(path: str) -> tuple[str, str, str]:
         return "GNU/FSF canonical license text", "upstream-license-text", "AGPL-3.0-only"
     if path == "LICENSE":
         return "Project license notice", "generated-license-notice", "AGPL-3.0-only"
-    return "HubICG Community release candidate", "first-party", "AGPL-3.0-only"
+    return "HubICG Community public baseline", "first-party", "AGPL-3.0-only"
 
 
 parser = argparse.ArgumentParser()
