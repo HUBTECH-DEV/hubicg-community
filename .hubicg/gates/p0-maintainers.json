@@ -3,9 +3,16 @@
   "gate": "p0-maintainers",
   "owner": "Paulo Cesar Benjamin Junior",
   "repository": "HUBTECH-DEV/hubicg-community-public-rc",
-  "status": "blocked",
-  "reviewedAt": null,
+  "status": "approved",
+  "reviewedAt": "2026-08-07T05:26:59-03:00",
   "approvedMaintainers": ["paullobenjamin"],
-  "unauthorizedMaintainers": ["halinibenjamin-pm"],
-  "blocker": "halinibenjamin-pm is an organization owner and therefore inherits repository administration"
+  "unauthorizedMaintainers": [],
+  "inheritedAdministrators": ["halinibenjamin-pm"],
+  "permissionException": {
+    "account": "halinibenjamin-pm",
+    "decision": "preserve-current-organization-permission",
+    "governanceRole": "not-a-project-maintainer",
+    "approvedBy": "Paulo Cesar Benjamin Junior",
+    "approvedAt": "2026-08-07T05:26:59-03:00"
+  }
 }

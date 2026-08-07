@@ -27,7 +27,8 @@ def load(path: Path) -> dict:
 
 def tracked_paths(manifest: str) -> set[str]:
     result = subprocess.run(
-        ["git", "ls-files"], cwd=ROOT, capture_output=True, text=True, check=True,
+        ["git", "ls-files", "--cached", "--others", "--exclude-standard"],
+        cwd=ROOT, capture_output=True, text=True, check=True,
     )
     return {path for path in result.stdout.splitlines() if path and path != manifest}
 

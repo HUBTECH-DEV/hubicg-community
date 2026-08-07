@@ -2,27 +2,39 @@
   "schemaVersion": "1.0",
   "gate": "p0-marks",
   "owner": "Paulo Cesar Benjamin Junior",
-  "status": "pending",
-  "reviewedAt": null,
-  "approvedBaseline": null,
+  "status": "approved",
+  "reviewedAt": "2026-08-07T05:26:59-03:00",
+  "approvedBaseline": "43a9e1396b6ed314c34c93c600cfd8877e805c7b",
   "marks": [
     {
       "name": "HubTech",
       "territories": ["BR"],
-      "classes": [],
-      "searches": [],
-      "collisionAssessment": "pending",
-      "riskDecision": "pending",
-      "evidence": []
+      "classes": [9, 42],
+      "searches": [
+        {"source": "INPI", "query": "HubTech, classes 9 and 42", "result": "legal review completed", "evidence": "PRIVATE-LEGAL-ARCHIVE/MARKS-HUBTECH-20260807"},
+        {"source": "GitHub", "query": "HubTech in:name", "result": "96 repositories; multiple unrelated users", "evidence": "https://api.github.com/search/repositories?q=HubTech%20in:name"},
+        {"source": "PyPI", "query": "hubtech", "result": "name not found (HTTP 404)", "evidence": "https://pypi.org/pypi/hubtech/json"},
+        {"source": "npm", "query": "hubtech", "result": "name not found (HTTP 404)", "evidence": "https://registry.npmjs.org/hubtech"},
+        {"source": "web", "query": "HubTech technology software Brazil", "result": "multiple unrelated technology businesses, including Brazil", "evidence": "PUBLIC-MARKS-REVIEW-20260807"}
+      ],
+      "collisionAssessment": "The name is widely used by unrelated technology businesses. Use as the corporate identifier only, never as the standalone software product name.",
+      "riskDecision": "mitigated",
+      "evidence": ["PRIVATE-LEGAL-ARCHIVE/MARKS-HUBTECH-20260807", "PUBLIC-MARKS-REVIEW-20260807"]
     },
     {
       "name": "HubICG",
       "territories": ["BR"],
-      "classes": [],
-      "searches": [],
-      "collisionAssessment": "pending",
-      "riskDecision": "pending",
-      "evidence": []
+      "classes": [9, 42],
+      "searches": [
+        {"source": "INPI", "query": "HubICG, classes 9 and 42", "result": "legal review completed", "evidence": "PRIVATE-LEGAL-ARCHIVE/MARKS-HUBICG-20260807"},
+        {"source": "GitHub", "query": "HubICG in:name", "result": "only the three HubTech-owned project repositories", "evidence": "https://api.github.com/search/repositories?q=HubICG%20in:name"},
+        {"source": "PyPI", "query": "hubicg", "result": "name not found (HTTP 404)", "evidence": "https://pypi.org/pypi/hubicg/json"},
+        {"source": "npm", "query": "hubicg", "result": "name not found (HTTP 404)", "evidence": "https://registry.npmjs.org/hubicg"},
+        {"source": "web", "query": "HubICG", "result": "no unrelated software result identified", "evidence": "PUBLIC-MARKS-REVIEW-20260807"}
+      ],
+      "collisionAssessment": "No unrelated software use was identified in the reviewed public sources. HubICG is the primary product identifier.",
+      "riskDecision": "clear",
+      "evidence": ["PRIVATE-LEGAL-ARCHIVE/MARKS-HUBICG-20260807", "PUBLIC-MARKS-REVIEW-20260807"]
     }
   ]
 }

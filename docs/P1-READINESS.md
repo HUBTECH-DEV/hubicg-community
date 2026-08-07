@@ -1,8 +1,8 @@
 # P1 implementation and release-candidate readiness
 
-**Scope:** private release candidate for v0.1.0
+**Scope:** approved Community baseline for v0.1.0
 
-**Public status:** blocked by `docs/LEGAL-RELEASE-GATE.md`
+**Public status:** promotion and release authorized on 2026-08-07
 
 ## P1.1 — Community product and governance
 
@@ -15,7 +15,7 @@
 | Community health | governance, contribution, security, support and templates | Implemented in candidate |
 | Cross-platform CI | Linux, macOS and Windows; Python 3.11/3.12 | Enforced |
 | Merge policy | squash-only, update branch allowed and merged branches deleted | Applied |
-| Public-only GitHub controls | ruleset, CodeQL, dependency review, secret scanning and private vulnerability reporting | Deferred to publication gate |
+| Public-only GitHub controls | ruleset, CodeQL, dependency review, secret scanning and private vulnerability reporting | Apply and verify during promotion |
 
 ## P1.2 — Local role storage and selection
 
@@ -42,8 +42,6 @@ The technical release candidate produces:
 - install, upgrade and rollback instructions;
 - Linux/macOS/Windows CI evidence.
 
-The word “unsigned” is deliberate: candidate provenance is not a substitute
-for the legally approved, signed tag. P1.3 is technically prepared but not
-publicly released. Creating `v0.1.0`, changing visibility or publishing a
-GitHub Release remains prohibited until every P0 gate and the explicit public
-authorization are complete.
+The word “unsigned” is deliberate: build provenance is not a substitute for the
+approved signed tag. Every P0 gate and the explicit public authorization were
+completed on 2026-08-07; promotion and release may proceed.

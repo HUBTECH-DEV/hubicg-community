@@ -7,8 +7,8 @@ Baseline prepared on 2026-08-06 in the clean repository
 
 | Paths | Origin | Treatment |
 |---|---|---|
-| `src/`, `tests/`, `.hubicg/`, `examples/`, `scripts/` | New implementation authored for the HubICG public candidate | Patrimonial rights assigned to HubTech; final file-by-file evidence remains operationally pending |
-| `docs/architecture/`, `docs/adr/` | New architecture analysis and decisions for the candidate | Sources are linked in the study; final file-by-file evidence remains operationally pending |
+| `src/`, `tests/`, `.hubicg/`, `examples/`, `scripts/` | New implementation authored for the HubICG public candidate | Patrimonial rights assigned to HubTech; file-by-file evidence approved |
+| `docs/architecture/`, `docs/adr/` | New architecture analysis and decisions for the candidate | Sources are linked in the study; file-by-file evidence approved |
 | Governance, licensing and project-health Markdown | New project-specific drafting | Legal review is recorded as complete; no third-party code copied |
 | `LICENSES/AGPL-3.0-only.txt` | GitHub license API canonical AGPL-3.0 text | Preserved verbatim; license text is not claimed as HubTech authorship |
 | `.github/workflows/` | New workflow composition referencing GitHub Actions | Referenced Actions retain their upstream licenses; pinning review required before release |
@@ -24,7 +24,5 @@ Baseline prepared on 2026-08-06 in the clean repository
   `63a913d7bff295cc8acd0a37d3f27568f303b977`.
 
 These identifiers describe provenance only. Their histories are not part of the
-public candidate. The legal and chain-of-title declarations are recorded as
-complete. Before publication, the complete Git alias list must be confirmed and
-the file-by-file provenance manifest must be finalized against the approved
-baseline.
+public candidate. The legal and chain-of-title declarations, Git alias list and
+file-by-file provenance manifest are recorded as approved for publication.

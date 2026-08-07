@@ -38,5 +38,5 @@ compatible role backup using the exact approval ID. See
 `docs/UPGRADE-ROLLBACK.md`. Future schema migrations require their own
 compatibility and reverse-migration evidence.
 
-The candidate artifacts and checksums are generated privately. The official
-tag and GitHub Release are produced only after the legal gate.
+The release artifacts and checksums are generated from the approved baseline.
+The P0 gates and publication authorization were completed on 2026-08-07.

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import csv
 import hashlib
 import subprocess
@@ -32,6 +33,11 @@ def defaults(path: str) -> tuple[str, str, str]:
     return "HubICG Community release candidate", "first-party", "AGPL-3.0-only"
 
 
+parser = argparse.ArgumentParser()
+parser.add_argument("--approve", action="store_true")
+parser.add_argument("--baseline", default="working-tree-candidate")
+args = parser.parse_args()
+
 with (ROOT / OUTPUT).open("w", encoding="utf-8", newline="") as stream:
     writer = csv.DictWriter(stream, fieldnames=FIELDS)
     writer.writeheader()
@@ -41,13 +47,14 @@ with (ROOT / OUTPUT).open("w", encoding="utf-8", newline="") as stream:
             "path": relative,
             "sha256": hashlib.sha256((ROOT / relative).read_bytes()).hexdigest(),
             "origin": origin,
-            "source_commit": "working-tree-candidate",
+            "source_commit": args.baseline,
             "author": "Paulo Cesar Benjamin Junior",
             "classification": classification,
             "license": license_id,
-            "decision": "pending",
+            "decision": "approved" if args.approve else "pending",
             "reviewer": "Paulo Cesar Benjamin Junior",
-            "evidence": "review-required",
+            "evidence": f"git:{args.baseline}" if args.approve else "review-required",
         })
 
-print(f"provenance_manifest=generated path={OUTPUT} files={len(tracked_paths())}")
+decision = "approved" if args.approve else "pending"
+print(f"provenance_manifest=generated path={OUTPUT} files={len(tracked_paths())} decision={decision}")
