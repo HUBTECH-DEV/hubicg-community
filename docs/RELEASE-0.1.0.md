@@ -23,8 +23,8 @@ The matrix becomes release evidence only after all six GitHub Actions jobs pass.
 
 ## Planned, not implemented
 
-Natural-language intent parsing, semantic role selection, official Atlas
-catalog synchronization/API, model selection, MCP connectivity, context
+Natural-language intent parsing, semantic role selection, any remote catalog
+synchronization/API, model selection, MCP connectivity, context
 compaction, token optimization, guardrail orchestration and adaptive history.
 
 ## Upgrade and rollback

@@ -54,7 +54,7 @@ Use `--json` before the command for machine-readable output.
 - [Versioning and compatibility](docs/VERSIONING.md)
 - [Community and Enterprise boundary](docs/EDITIONS.md)
 - [Role storage and selection study](docs/architecture/ROLE-STORAGE-SELECTION-STUDY.md)
-- [ADR-001: hybrid role catalog](docs/adr/ADR-001-hybrid-role-catalog.md)
+- [ADR-001: local role storage](docs/adr/ADR-001-local-role-storage.md)
 - [Third-party notices](THIRD_PARTY_NOTICES.md)
 
 ## Licensing
