@@ -1,0 +1,18 @@
+{
+  "allowedPattern": "^[A-Za-z0-9._+@-]+$",
+  "deniedTokens": [
+    "cnh",
+    "cnpj",
+    "cpf",
+    "id_rsa",
+    "passport",
+    "passwd",
+    "password",
+    "private_key",
+    "secret",
+    "token"
+  ],
+  "maxPathLength": 240,
+  "maxSegmentLength": 120,
+  "schemaVersion": "1.0"
+}

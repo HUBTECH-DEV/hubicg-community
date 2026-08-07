@@ -1,0 +1,24 @@
+name: Bug report
+description: Report a reproducible HubICG defect without private data.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: description
+    attributes: {label: Description}
+    validations: {required: true}
+  - type: textarea
+    id: reproduce
+    attributes: {label: Reproduction steps}
+    validations: {required: true}
+  - type: input
+    id: version
+    attributes: {label: HubICG version}
+    validations: {required: true}
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy check
+      options:
+        - label: I removed secrets, personal data, prompts and private chat history.
+          required: true

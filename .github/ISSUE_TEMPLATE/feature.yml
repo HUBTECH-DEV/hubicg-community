@@ -1,0 +1,19 @@
+name: Feature request
+description: Propose a Community capability.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes: {label: Problem to solve}
+    validations: {required: true}
+  - type: textarea
+    id: proposal
+    attributes: {label: Proposed outcome}
+    validations: {required: true}
+  - type: dropdown
+    id: edition
+    attributes:
+      label: Edition
+      options: [Community core, Enterprise integration, Unsure]
+    validations: {required: true}
