@@ -4,8 +4,9 @@ HubICG (HubTech Intent & Context Gateway) is a model-agnostic foundation for
 governing AI configuration, roles, prompt context and auditable changes across
 tools and IDEs.
 
-> Release candidate: this repository remains private until the legal baseline,
-> provenance review and security settings are formally approved.
+> Release candidate: the legal and chain-of-title items are complete. This
+> repository remains private until the operational provenance, baseline and
+> publication gates are complete.
 
 ## What v0.1.0 delivers
 
@@ -66,6 +67,9 @@ Use `--json` before the command for machine-readable output.
 - [Installation](docs/INSTALLATION.md)
 - [Upgrade and rollback](docs/UPGRADE-ROLLBACK.md)
 - [P1 readiness](docs/P1-READINESS.md)
+- [P0 marks gate](docs/gates/P0-MARKS-GATE.md)
+- [P0 provenance gate](docs/gates/P0-PROVENANCE-GATE.md)
+- [P0 repository maintainer gate](docs/gates/P0-MAINTAINERS-GATE.md)
 - [Third-party notices](THIRD_PARTY_NOTICES.md)
 
 ## Licensing
@@ -74,6 +78,6 @@ The intended public Community edition is licensed under `AGPL-3.0-only`.
 HubTech may separately offer commercial terms for code over which it has
 sufficient rights. See [LICENSING.md](LICENSING.md).
 
-Copyright © 2026 Paulo Cesar Benjamin Junior. The intended assignee of
-patrimonial rights is HUBTECH CONSULTORIA E DESENVOLVIMENTO LTDA; the transfer
-remains subject to completion of the documented chain of title.
+Copyright © 2026 Paulo Cesar Benjamin Junior, author. The patrimonial rights
+holder is HUBTECH CONSULTORIA E DESENVOLVIMENTO LTDA under the documented
+gratuitous assignment.

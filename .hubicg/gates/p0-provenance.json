@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "1.0",
+  "gate": "p0-provenance",
+  "owner": "Paulo Cesar Benjamin Junior",
+  "status": "pending",
+  "reviewedAt": null,
+  "approvedBaseline": null,
+  "aliasesConfirmed": false,
+  "mailmap": ".mailmap",
+  "manifest": "docs/legal/PROVENANCE-MANIFEST.csv",
+  "thirdPartyNoticesConfirmed": false,
+  "sensitiveContentReviewConfirmed": false
+}

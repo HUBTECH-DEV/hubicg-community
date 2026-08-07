@@ -5,7 +5,8 @@ HubICG uses maintainer-led, evidence-based governance.
 ## Roles
 
 - **Core maintainer:** Paulo Cesar Benjamin Junior. Owns releases, security
-  decisions, governance changes and final technical tie-breaking.
+  decisions, governance changes, repository maintenance and final technical
+  tie-breaking. Paulo is the sole appointed maintainer for v0.1.0.
 - **Maintainer:** a contributor granted review or merge responsibility for a
   defined area in `MAINTAINERS.md`.
 - **Contributor:** anyone proposing an issue, discussion, documentation or code.
@@ -23,6 +24,10 @@ Maintainer scope, GitHub identity and appointment date must be recorded in
 may be suspended or removed for security risk, repeated policy violations or
 loss of the documented scope, with a recorded rationale and an opportunity to
 respond when safe.
+
+An organization or repository permission does not itself appoint a maintainer.
+Accounts not listed in `MAINTAINERS.md` are not authorized by project
+governance to maintain, push, merge or release HubICG Community.
 
 Releases require passing CI, package and security checks, updated change and
 migration notes, dependency/provenance review and core-maintainer approval.

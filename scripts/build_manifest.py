@@ -18,9 +18,13 @@ PATHS = [
     "scripts/build_checksums.py", "scripts/build_provenance.py",
     "scripts/normalize_sdist.py", "scripts/verify_release.py",
     "scripts/verify_reproducible_build.py",
+    "scripts/check_p0_gates.py", "scripts/build_provenance_manifest.py",
+    ".hubicg/gates/p0-marks.json", ".hubicg/gates/p0-provenance.json",
+    ".hubicg/gates/p0-maintainers.json",
     ".hubicg/roles/git-devops.json", ".hubicg/roles/software-development.json",
     ".hubicg/roles/solution-architecture.json", ".github/workflows/ci.yml",
-    ".github/workflows/release.yml", "Makefile",
+    ".github/workflows/release.yml", ".github/workflows/promotion-gate.yml",
+    "Makefile",
 ]
 
 def content() -> str:

@@ -168,34 +168,50 @@ class SQLiteRoleRepository:
         if not self.path.is_file():
             raise ValueError("role database is not initialized")
         target.parent.mkdir(parents=True, exist_ok=True)
-        with self.connect() as source, sqlite3.connect(target) as destination:
+        source = self.connect()
+        destination = sqlite3.connect(target)
+        try:
             source.execute("PRAGMA wal_checkpoint(FULL)")
             source.backup(destination)
             if destination.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
                 raise ValueError("role database backup integrity check failed")
+        finally:
+            destination.close()
+            source.close()
 
     def restore(self, source: Path) -> None:
         if not source.is_file() or source.is_symlink():
             raise ValueError("role database backup is not a regular file")
         uri = f"file:{source.as_posix()}?mode=ro"
-        with sqlite3.connect(uri, uri=True) as candidate:
+        candidate = sqlite3.connect(uri, uri=True)
+        try:
             if candidate.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
                 raise ValueError("role database backup integrity check failed")
             version = candidate.execute("SELECT MAX(version) FROM schema_metadata").fetchone()[0]
             if version != SCHEMA_VERSION:
                 raise ValueError(f"unsupported role database schema: {version}")
+        finally:
+            candidate.close()
 
         self.path.parent.mkdir(parents=True, exist_ok=True)
         descriptor, temp_name = tempfile.mkstemp(prefix=".roles-restore.", dir=self.path.parent)
         os.close(descriptor)
         temp_path = Path(temp_name)
         try:
-            with sqlite3.connect(uri, uri=True) as candidate, sqlite3.connect(temp_path) as destination:
+            candidate = sqlite3.connect(uri, uri=True)
+            destination = sqlite3.connect(temp_path)
+            try:
                 candidate.backup(destination)
+            finally:
+                destination.close()
+                candidate.close()
             if self.path.exists():
-                with self.connect() as current:
+                current = self.connect()
+                try:
                     current.execute("PRAGMA wal_checkpoint(TRUNCATE)")
                     current.execute("PRAGMA journal_mode = DELETE")
+                finally:
+                    current.close()
             os.replace(temp_path, self.path)
             for suffix in ("-wal", "-shm"):
                 sidecar = Path(str(self.path) + suffix)

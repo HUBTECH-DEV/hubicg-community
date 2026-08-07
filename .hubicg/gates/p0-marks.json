@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "1.0",
+  "gate": "p0-marks",
+  "owner": "Paulo Cesar Benjamin Junior",
+  "status": "pending",
+  "reviewedAt": null,
+  "approvedBaseline": null,
+  "marks": [
+    {
+      "name": "HubTech",
+      "territories": ["BR"],
+      "classes": [],
+      "searches": [],
+      "collisionAssessment": "pending",
+      "riskDecision": "pending",
+      "evidence": []
+    },
+    {
+      "name": "HubICG",
+      "territories": ["BR"],
+      "classes": [],
+      "searches": [],
+      "collisionAssessment": "pending",
+      "riskDecision": "pending",
+      "evidence": []
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "schemaVersion": "1.0",
+  "gate": "p0-maintainers",
+  "owner": "Paulo Cesar Benjamin Junior",
+  "repository": "HUBTECH-DEV/hubicg-community-public-rc",
+  "status": "blocked",
+  "reviewedAt": null,
+  "approvedMaintainers": ["paullobenjamin"],
+  "unauthorizedMaintainers": ["halinibenjamin-pm"],
+  "blocker": "halinibenjamin-pm is an organization owner and therefore inherits repository administration"
+}

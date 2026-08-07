@@ -10,6 +10,7 @@ check:
 	PYTHONPATH=src python3 -m hubicg --root . validate
 	PYTHONPATH=src python3 -m hubicg --root . roles verify
 	PYTHONPATH=src python3 -m hubicg --root . files verify
+	python3 scripts/check_p0_gates.py
 	python3 scripts/build_manifest.py --check
 
 build:

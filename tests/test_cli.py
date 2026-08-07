@@ -98,6 +98,7 @@ def test_role_database_backup_export_and_approved_restore(tmp_path: Path) -> Non
     assert run(root, "roles", "db", "init").returncode == 0
     assert run(root, "roles", "db", "import", "--source", "custom").returncode == 0
     backup = run(root, "--json", "roles", "db", "backup")
+    assert backup.returncode == 0, backup.stderr
     backup_id = json.loads(backup.stdout)["backupId"]
     assert run(root, "roles", "db", "import", "--source", "project").returncode == 0
     assert run(root, "roles", "db", "restore", "--approval", "deadbeef").returncode == 3
