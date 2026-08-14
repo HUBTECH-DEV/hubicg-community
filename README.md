@@ -14,6 +14,7 @@ tools and IDEs.
 - portable and privacy-aware filename validation;
 - local-first role indexing and search using SQLite;
 - explained selection and conflict-aware composition of local roles;
+- public Principal DevOps Engineer and Principal Git Engineer roles;
 - verified local backup, export and approved rollback;
 - human-approved configuration proposals;
 - hash-chained evidence for applied configuration changes;
@@ -60,6 +61,7 @@ Use `--json` before the command for machine-readable output.
 - [Support](SUPPORT.md)
 - [Versioning and compatibility](docs/VERSIONING.md)
 - [Community and Enterprise boundary](docs/EDITIONS.md)
+- [Repository centralization](docs/CENTRALIZATION.md)
 - [Role storage and selection study](docs/architecture/ROLE-STORAGE-SELECTION-STUDY.md)
 - [ADR-001: local role storage](docs/adr/ADR-001-local-role-storage.md)
 - [Role schema and compatibility](docs/ROLE-SCHEMA-COMPATIBILITY.md)
