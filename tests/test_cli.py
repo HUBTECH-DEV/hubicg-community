@@ -210,6 +210,20 @@ def test_repository_manifest_is_valid() -> None:
     assert run(root, "evidence", "verify").returncode == 0
 
 
+def test_public_git_and_devops_roles_are_valid() -> None:
+    root = Path(__file__).parents[1]
+    roles = root / ".hubicg" / "roles"
+    expected = {
+        "principal-devops-engineer.json": "principal-devops-engineer",
+        "principal-git-engineer.json": "principal-git-engineer",
+    }
+    for filename, role_id in expected.items():
+        payload = json.loads((roles / filename).read_text(encoding="utf-8"))
+        assert payload["id"] == role_id
+        assert payload["schemaVersion"] == "1.0"
+    assert run(root, "roles", "verify").returncode == 0
+
+
 def test_maintainer_passes_cla_gate(tmp_path: Path) -> None:
     root = Path(__file__).parents[1]
     event = tmp_path / "event.json"

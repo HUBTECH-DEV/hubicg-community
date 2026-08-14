@@ -4,6 +4,8 @@
 
 ### Added
 
+- Canonical Community/Enterprise repository boundary and promotion direction.
+- Public Principal DevOps Engineer and Principal Git Engineer roles.
 - Community governance and legal-readiness documents.
 - Auditable HubICG CLI foundation and cross-platform CI.
 - Portable, privacy-aware filename policy and CI gate.
@@ -14,9 +16,9 @@
 - Hash-chained evidence for approved configuration changes.
 - Reproducible release build, isolated wheel smoke test and build provenance.
 
-## [0.1.0] — pending legal baseline
+## [0.1.0] — 2026-08-07
 
 Release name: Community Governance Foundation.
 
-The tag and release remain pending until chain of title, provenance, trademark
-analysis and final legal review are approved.
+The legal, provenance, trademark and publication gates were approved. The
+signed tag and public release were published with verified artifacts.
