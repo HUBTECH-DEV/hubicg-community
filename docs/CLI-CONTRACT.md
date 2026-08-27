@@ -39,15 +39,32 @@ Backups are addressed by the first 16 hexadecimal characters of their SHA-256.
 Restoration requires that exact value as explicit approval and validates the
 database before replacement.
 
+## Claude Code adapter
+
+```text
+hubicg adapters claude-code diff
+hubicg adapters claude-code propose
+hubicg adapters claude-code apply --approval PROPOSAL_ID
+```
+
+Renders every valid local role as a Claude Code subagent file under
+`.hubicg/exports/claude-code/<role-id>.md`, following the same propose/apply
+approval flow as `config apply`. `propose` refuses roles with a mutual
+`conflictsWith` in the exported set. `apply` never overwrites or deletes a
+file in that directory unless it carries the `hubicg:managed` provenance
+marker this adapter writes, so hand-authored files are never touched. See
+`docs/architecture/CLAUDE-CODE-ADAPTER-STUDY.md`. Writing directly into a
+project's `.claude/agents/` remains a separate, undecided increment.
+
 ## Change evidence
 
 ```text
 hubicg evidence changes verify
 ```
 
-Every approved `config apply` appends a hash-chained event containing the
-proposal ID and the before/after configuration hashes. Evidence contains no
-prompt or chat content.
+Every approved `config apply` or `adapters claude-code apply` appends a
+hash-chained event containing the proposal ID and the before/after content
+hashes. Evidence contains no prompt or chat content.
 
 ## Public filename gate
 

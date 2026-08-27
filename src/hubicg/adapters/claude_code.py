@@ -1,8 +1,14 @@
 """Render a HubICG role as a Claude Code subagent file.
 
-Pure and read-only: no filesystem access. Writing the rendered file under
-``.claude/agents/`` and the propose/apply approval flow are a separate,
-later increment (see docs/architecture/CLAUDE-CODE-ADAPTER-STUDY.md).
+Pure and read-only: no filesystem access. The CLI writes the rendered output
+under ``.hubicg/exports/claude-code/`` through the ``config``-style
+propose/apply approval flow (see ``hubicg adapters claude-code`` in
+``cli.py``). Writing outside ``.hubicg/`` -- e.g. directly into a project's
+``.claude/agents/`` -- is a separate, later increment: ``state_path`` in
+``cli.py`` refuses any path outside ``.hubicg/`` today, so exporting there
+would need its own ADR, not just this adapter
+(see docs/architecture/CLAUDE-CODE-ADAPTER-STUDY.md, which this module
+corrects on that point).
 """
 
 from __future__ import annotations
@@ -41,6 +47,23 @@ def render_subagent(role: dict[str, Any]) -> str:
     )
     frontmatter = f"---\nname: {role_id}\ndescription: {description}\n---"
     return f"{marker}\n{frontmatter}\n\n{instructions}\n"
+
+
+def find_conflicts(roles: list[dict[str, Any]]) -> list[tuple[str, str]]:
+    """Return sorted, deduplicated pairs of role ids with a declared mutual conflict.
+
+    Only conflicts between roles that are both present in ``roles`` are
+    reported: a role's ``conflictsWith`` entry for an id outside this set is
+    not this adapter's concern, since it was not selected for export.
+    """
+    present = {role["id"] for role in roles}
+    pairs = {
+        tuple(sorted((role["id"], other)))
+        for role in roles
+        for other in role.get("conflictsWith", [])
+        if other in present
+    }
+    return sorted(pairs)
 
 
 def parse_marker(text: str) -> dict[str, str] | None:

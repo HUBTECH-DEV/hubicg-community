@@ -53,9 +53,18 @@ instruções.
 
 ## Fluxo de escrita: reaproveitar aprovação humana, não inventar um novo
 
-Exportar toca arquivos fora de `.hubicg/`, o que hoje só acontece através do
-par `config propose` → `config apply --approval ID`. O adaptador do Claude
-Code precisa do mesmo contrato, não de um caminho de escrita direta:
+**Correção sobre a primeira versão deste estudo:** `state_path` em `cli.py`
+recusa qualquer caminho fora de `.hubicg/` (`refusing path outside .hubicg`),
+e o README promete explicitamente que comandos mutáveis "never write outside
+`.hubicg/`". Escrever direto em `.claude/agents/` violaria essa garantia já
+documentada e testada — não é algo que este adaptador possa decidir sozinho,
+exigiria sua própria ADR. Por isso a implementação (ver PR do incremento)
+escreve em `.hubicg/exports/claude-code/<role-id>.md`, dentro da fronteira
+existente; promover esses arquivos para `.claude/agents/` continua sendo um
+incremento separado e ainda não decidido.
+
+O adaptador reaproveita o mesmo contrato de `config propose` → `config apply
+--approval ID`, só que a "escrita" fica dentro de `.hubicg/`:
 
 ```text
 hubicg adapters claude-code diff

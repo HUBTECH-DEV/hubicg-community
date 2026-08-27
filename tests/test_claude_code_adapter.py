@@ -1,4 +1,4 @@
-from hubicg.adapters.claude_code import content_hash, parse_marker, render_subagent
+from hubicg.adapters.claude_code import content_hash, find_conflicts, parse_marker, render_subagent
 
 ROLE = {
     "schemaVersion": "1.0",
@@ -60,3 +60,18 @@ def test_parse_marker_returns_none_for_hand_authored_file() -> None:
 def test_parse_marker_returns_none_when_marker_is_not_first_line() -> None:
     text = "Some preamble\n<!-- hubicg:managed role=x version=1 hash=sha256:" + "0" * 64 + " -->\n"
     assert parse_marker(text) is None
+
+
+def test_find_conflicts_reports_mutual_pair_once() -> None:
+    roles = [{**ROLE, "id": "a", "conflictsWith": ["b"]}, {**ROLE, "id": "b", "conflictsWith": ["a"]}]
+    assert find_conflicts(roles) == [("a", "b")]
+
+
+def test_find_conflicts_ignores_reference_to_role_not_in_the_set() -> None:
+    roles = [{**ROLE, "id": "a", "conflictsWith": ["not-selected"]}]
+    assert find_conflicts(roles) == []
+
+
+def test_find_conflicts_empty_for_roles_without_conflicts() -> None:
+    roles = [{**ROLE, "id": "a"}, {**ROLE, "id": "b"}]
+    assert find_conflicts(roles) == []

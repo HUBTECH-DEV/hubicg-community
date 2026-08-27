@@ -15,7 +15,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .change_evidence import record_config_change, verify_events
+from .adapters.claude_code import find_conflicts, parse_marker, render_subagent
+from .change_evidence import record_claude_code_export, record_config_change, verify_events
 from .filenames import load_policy, repository_paths, validate_paths
 from .role_schema import validate_role
 from .role_selection import select_roles
@@ -90,6 +91,20 @@ def atomic_json(path: Path, data: Any) -> None:
         with os.fdopen(descriptor, "wb") as stream:
             stream.write(json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True).encode())
             stream.write(b"\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temp_name, path)
+    finally:
+        if os.path.exists(temp_name):
+            os.unlink(temp_name)
+
+
+def atomic_text(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(content.encode("utf-8"))
             stream.flush()
             os.fsync(stream.fileno())
         os.replace(temp_name, path)
@@ -385,6 +400,118 @@ def config_apply(ctx: Context, args: argparse.Namespace) -> None:
     )
 
 
+def local_valid_roles(ctx: Context) -> list[dict[str, Any]]:
+    files = role_files(ctx)
+    errors = [error for path in files for error in role_errors(path)]
+    if errors:
+        raise HubICGError("; ".join(errors))
+    return [read_json(path) for path in files]
+
+
+def claude_code_export_dir(ctx: Context) -> Path:
+    return state_path(ctx, "exports", "claude-code")
+
+
+def claude_code_export_candidate(ctx: Context) -> dict[str, str]:
+    roles = local_valid_roles(ctx)
+    conflicts = find_conflicts(roles)
+    if conflicts:
+        pairs = ", ".join(f"{first}<->{second}" for first, second in conflicts)
+        raise HubICGError(f"conflicting roles cannot be exported together: {pairs}")
+    return {role["id"]: render_subagent(role) for role in roles}
+
+
+def claude_code_existing_exports(export_dir: Path) -> dict[str, str]:
+    if not export_dir.exists():
+        return {}
+    return {
+        path.stem: path.read_text(encoding="utf-8")
+        for path in sorted(export_dir.glob("*.md"))
+        if not path.is_symlink()
+    }
+
+
+def claude_code_diff(ctx: Context, _args: argparse.Namespace) -> None:
+    candidate = claude_code_export_candidate(ctx)
+    existing = claude_code_existing_exports(claude_code_export_dir(ctx))
+    lines: list[str] = []
+    for role_id in sorted(set(candidate) | set(existing)):
+        before, after = existing.get(role_id, ""), candidate.get(role_id, "")
+        if before == after:
+            continue
+        lines.extend(difflib.unified_diff(
+            before.splitlines(), after.splitlines(),
+            fromfile=f"exports/claude-code/{role_id}.md (current)",
+            tofile=f"exports/claude-code/{role_id}.md (candidate)",
+            lineterm="",
+        ))
+    emit(ctx, {"changed": bool(lines), "diff": lines}, "\n".join(lines) if lines else "claude_code_export=unchanged")
+
+
+def claude_code_propose(ctx: Context, _args: argparse.Namespace) -> None:
+    candidate = claude_code_export_candidate(ctx)
+    proposal_id = hashlib.sha256(canonical(candidate)).hexdigest()[:16]
+    proposal = {"schemaVersion": "1.0", "id": proposal_id, "kind": "claude-code-export", "candidate": candidate}
+    target = state_path(ctx, "proposals", f"{proposal_id}.json")
+    atomic_json(target, proposal)
+    emit(
+        ctx,
+        {"status": "pending", "proposalId": proposal_id, "file": str(target.relative_to(ctx.root))},
+        f"proposal=pending id={proposal_id}",
+    )
+
+
+def claude_code_apply(ctx: Context, args: argparse.Namespace) -> None:
+    approval = args.approval.lower()
+    if len(approval) != 16 or any(char not in "0123456789abcdef" for char in approval):
+        raise HubICGError("a valid 16-character proposal ID is required", EXIT_APPROVAL)
+    proposal_path = state_path(ctx, "proposals", f"{approval}.json")
+    if not proposal_path.is_file():
+        raise HubICGError("approved proposal was not found", EXIT_APPROVAL)
+    proposal = read_json(proposal_path)
+    if not isinstance(proposal, dict) or proposal.get("kind") != "claude-code-export":
+        raise HubICGError("proposal is not a pending claude-code export", EXIT_APPROVAL)
+    candidate = proposal.get("candidate")
+    valid_candidate = isinstance(candidate, dict) and all(isinstance(value, str) for value in candidate.values())
+    if not valid_candidate or proposal.get("id") != approval or hashlib.sha256(canonical(candidate)).hexdigest()[:16] != approval:
+        raise HubICGError("proposal integrity check failed", EXIT_APPROVAL)
+
+    export_dir = claude_code_export_dir(ctx)
+    before = claude_code_existing_exports(export_dir)
+
+    written: list[str] = []
+    for role_id, content in candidate.items():
+        atomic_text(state_path(ctx, "exports", "claude-code", f"{role_id}.md"), content)
+        written.append(role_id)
+
+    removed: list[str] = []
+    for path in sorted(export_dir.glob("*.md")) if export_dir.exists() else []:
+        role_id = path.stem
+        if role_id in candidate or path.is_symlink():
+            continue
+        if parse_marker(path.read_text(encoding="utf-8")) is None:
+            continue
+        path.unlink()
+        removed.append(role_id)
+
+    evidence_path = record_claude_code_export(
+        state_path(ctx, "evidence"),
+        approval,
+        hashlib.sha256(canonical(before)).hexdigest(),
+        hashlib.sha256(canonical(candidate)).hexdigest(),
+    )
+    proposal_path.unlink()
+    emit(
+        ctx,
+        {
+            "status": "applied", "proposalId": approval, "written": sorted(written),
+            "removed": sorted(removed), "evidence": str(evidence_path.relative_to(ctx.root)),
+        },
+        f"claude_code_export=applied approval={approval} written={len(written)} "
+        f"removed={len(removed)} evidence={evidence_path.relative_to(ctx.root)}",
+    )
+
+
 def history_verify(ctx: Context, _args: argparse.Namespace) -> None:
     directory = state_path(ctx, "history")
     files = sorted(directory.glob("*.json")) if directory.exists() else []
@@ -480,6 +607,13 @@ def build_parser() -> argparse.ArgumentParser:
     diff = config.add_parser("diff"); diff.add_argument("candidate"); diff.set_defaults(handler=config_diff)
     propose = config.add_parser("propose"); propose.add_argument("candidate"); propose.set_defaults(handler=config_propose)
     apply = config.add_parser("apply"); apply.add_argument("--approval", required=True); apply.set_defaults(handler=config_apply)
+    adapters = commands.add_parser("adapters").add_subparsers(dest="adapters_command", required=True)
+    claude_code = adapters.add_parser("claude-code").add_subparsers(dest="claude_code_command", required=True)
+    claude_code.add_parser("diff").set_defaults(handler=claude_code_diff)
+    claude_code.add_parser("propose").set_defaults(handler=claude_code_propose)
+    claude_code_apply_parser = claude_code.add_parser("apply")
+    claude_code_apply_parser.add_argument("--approval", required=True)
+    claude_code_apply_parser.set_defaults(handler=claude_code_apply)
     history = commands.add_parser("history").add_subparsers(dest="history_command", required=True)
     history.add_parser("verify").set_defaults(handler=history_verify)
     git = commands.add_parser("git").add_subparsers(dest="git_command", required=True)

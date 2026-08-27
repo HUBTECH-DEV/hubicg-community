@@ -56,8 +56,9 @@ def verify_events(directory: Path) -> tuple[int, list[str]]:
     return len(files), errors
 
 
-def record_config_change(
+def _record_event(
     directory: Path,
+    event_type: str,
     proposal_id: str,
     before_hash: str,
     after_hash: str,
@@ -72,7 +73,7 @@ def record_config_change(
     event = {
         "schemaVersion": "1.0",
         "sequence": count + 1,
-        "eventType": "configuration-applied",
+        "eventType": event_type,
         "proposalId": proposal_id,
         "beforeHash": before_hash,
         "afterHash": after_hash,
@@ -83,3 +84,21 @@ def record_config_change(
     target = directory / f"{count + 1:06d}-{proposal_id}.json"
     _atomic_json(target, event)
     return target
+
+
+def record_config_change(
+    directory: Path,
+    proposal_id: str,
+    before_hash: str,
+    after_hash: str,
+) -> Path:
+    return _record_event(directory, "configuration-applied", proposal_id, before_hash, after_hash)
+
+
+def record_claude_code_export(
+    directory: Path,
+    proposal_id: str,
+    before_hash: str,
+    after_hash: str,
+) -> Path:
+    return _record_event(directory, "claude-code-export-applied", proposal_id, before_hash, after_hash)
