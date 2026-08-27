@@ -64,6 +64,8 @@ Use `--json` before the command for machine-readable output.
 - [Repository centralization](docs/CENTRALIZATION.md)
 - [Role storage and selection study](docs/architecture/ROLE-STORAGE-SELECTION-STUDY.md)
 - [ADR-001: local role storage](docs/adr/ADR-001-local-role-storage.md)
+- [ADR-002: tool adapter boundary](docs/adr/ADR-002-tool-adapter-boundary.md)
+- [Claude Code adapter study](docs/architecture/CLAUDE-CODE-ADAPTER-STUDY.md)
 - [Role schema and compatibility](docs/ROLE-SCHEMA-COMPATIBILITY.md)
 - [Installation](docs/INSTALLATION.md)
 - [Upgrade and rollback](docs/UPGRADE-ROLLBACK.md)
