@@ -53,8 +53,34 @@ approval flow as `config apply`. `propose` refuses roles with a mutual
 `conflictsWith` in the exported set. `apply` never overwrites or deletes a
 file in that directory unless it carries the `hubicg:managed` provenance
 marker this adapter writes, so hand-authored files are never touched. See
-`docs/architecture/CLAUDE-CODE-ADAPTER-STUDY.md`. Writing directly into a
-project's `.claude/agents/` remains a separate, undecided increment.
+`docs/architecture/CLAUDE-CODE-ADAPTER-STUDY.md`.
+
+### Activating exported agents in Claude Code
+
+`hubicg` itself never writes outside `.hubicg/`, so `.hubicg/exports/claude-code/`
+is a staging area, not yet where Claude Code looks. Making an exported role an
+active subagent is therefore a separate, human-run step, outside `hubicg`:
+
+```sh
+# Linux/macOS: symlink each exported file into .claude/agents/
+mkdir -p .claude/agents
+for f in .hubicg/exports/claude-code/*.md; do
+  ln -sf "../../$f" ".claude/agents/$(basename "$f")"
+done
+```
+
+```powershell
+# Windows: copy (creating a symlink requires an elevated/Developer Mode shell)
+New-Item -ItemType Directory -Force .claude\agents | Out-Null
+Copy-Item .hubicg\exports\claude-code\*.md .claude\agents\ -Force
+```
+
+Symlinking (preferred where available) keeps `.claude/agents/` in sync with
+every future `apply` automatically; copying requires re-running the copy
+after each `apply`. Either way, only run this against a role you have
+reviewed -- `hubicg` guarantees the *export* went through human-approved
+`propose`/`apply`, not that the resulting file was reviewed before it starts
+acting as a live subagent.
 
 ## Change evidence
 

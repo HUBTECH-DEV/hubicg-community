@@ -15,14 +15,15 @@ def test_render_subagent_golden() -> None:
     rendered = render_subagent(ROLE)
     expected_hash = content_hash(ROLE["name"], ROLE["instructions"])
     assert rendered == (
-        f"<!-- hubicg:managed role=principal-git-engineer version=1.0.0 hash={expected_hash} -->\n"
         "---\n"
         "name: principal-git-engineer\n"
         "description: git, governance, branch-strategy\n"
+        f"# hubicg:managed role=principal-git-engineer version=1.0.0 hash={expected_hash}\n"
         "---\n"
         "\n"
         "Inspecionar worktree antes de propor mudanças.\n"
     )
+    assert rendered.startswith("---\n"), "frontmatter must be the first thing in the file"
 
 
 def test_render_subagent_is_idempotent() -> None:
@@ -53,13 +54,14 @@ def test_parse_marker_round_trips_generated_output() -> None:
     }
 
 
-def test_parse_marker_returns_none_for_hand_authored_file() -> None:
-    assert parse_marker("---\nname: my-agent\n---\n\nHand-written.\n") is None
-
-
-def test_parse_marker_returns_none_when_marker_is_not_first_line() -> None:
-    text = "Some preamble\n<!-- hubicg:managed role=x version=1 hash=sha256:" + "0" * 64 + " -->\n"
+def test_parse_marker_returns_none_when_frontmatter_is_not_the_first_line() -> None:
+    marker = "# hubicg:managed role=x version=1 hash=sha256:" + "0" * 64
+    text = f"Some preamble\n---\nname: x\n{marker}\n---\n\nBody.\n"
     assert parse_marker(text) is None
+
+
+def test_parse_marker_returns_none_for_frontmatter_without_a_marker_comment() -> None:
+    assert parse_marker("---\nname: my-agent\ndescription: hand-written\n---\n\nBody.\n") is None
 
 
 def test_find_conflicts_reports_mutual_pair_once() -> None:

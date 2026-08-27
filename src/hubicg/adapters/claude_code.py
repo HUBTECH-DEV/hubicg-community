@@ -3,12 +3,11 @@
 Pure and read-only: no filesystem access. The CLI writes the rendered output
 under ``.hubicg/exports/claude-code/`` through the ``config``-style
 propose/apply approval flow (see ``hubicg adapters claude-code`` in
-``cli.py``). Writing outside ``.hubicg/`` -- e.g. directly into a project's
-``.claude/agents/`` -- is a separate, later increment: ``state_path`` in
-``cli.py`` refuses any path outside ``.hubicg/`` today, so exporting there
-would need its own ADR, not just this adapter
-(see docs/architecture/CLAUDE-CODE-ADAPTER-STUDY.md, which this module
-corrects on that point).
+``cli.py``). It never writes outside ``.hubicg/`` -- e.g. directly into a
+project's ``.claude/agents/`` -- because ``state_path`` in ``cli.py`` refuses
+any such path; getting an exported file into ``.claude/agents/`` is instead a
+documented manual step (see "Activating exported agents in Claude Code" in
+docs/CLI-CONTRACT.md and docs/architecture/CLAUDE-CODE-ADAPTER-STUDY.md).
 """
 
 from __future__ import annotations
@@ -17,10 +16,12 @@ import hashlib
 import re
 from typing import Any
 
+FRONTMATTER = re.compile(r"\A---\n(?P<body>.*?)\n---\n", re.DOTALL)
 MARKER = re.compile(
-    r"^<!-- hubicg:managed role=(?P<role>[a-z0-9]+(?:-[a-z0-9]+)*) "
+    r"^# hubicg:managed role=(?P<role>[a-z0-9]+(?:-[a-z0-9]+)*) "
     r"version=(?P<version>[0-9]+(?:\.[0-9]+){0,2}) "
-    r"hash=sha256:(?P<hash>[0-9a-f]{64}) -->$"
+    r"hash=sha256:(?P<hash>[0-9a-f]{64})$",
+    re.MULTILINE,
 )
 
 
@@ -32,6 +33,10 @@ def content_hash(name: str, instructions: str) -> str:
 def render_subagent(role: dict[str, Any]) -> str:
     """Render ``role`` (role schema v1) as Claude Code subagent markdown.
 
+    The provenance marker is a YAML comment inside the frontmatter, not a
+    leading HTML comment: Claude Code (and most frontmatter parsers) require
+    the file to *start* with the ``---`` fence, so nothing can precede it.
+
     The description is built only from ``tags``/``capabilities`` because
     those fields are already restricted to the role-id slug pattern by the
     schema, so no YAML escaping is needed in the frontmatter.
@@ -42,11 +47,11 @@ def render_subagent(role: dict[str, Any]) -> str:
     version = role.get("version", "1")
     description = ", ".join([*role.get("tags", []), *role.get("capabilities", [])]) or role_id
     marker = (
-        f"<!-- hubicg:managed role={role_id} version={version} "
-        f"hash={content_hash(name, instructions)} -->"
+        f"# hubicg:managed role={role_id} version={version} "
+        f"hash={content_hash(name, instructions)}"
     )
-    frontmatter = f"---\nname: {role_id}\ndescription: {description}\n---"
-    return f"{marker}\n{frontmatter}\n\n{instructions}\n"
+    frontmatter = f"---\nname: {role_id}\ndescription: {description}\n{marker}\n---"
+    return f"{frontmatter}\n\n{instructions}\n"
 
 
 def find_conflicts(roles: list[dict[str, Any]]) -> list[tuple[str, str]]:
@@ -69,12 +74,15 @@ def find_conflicts(roles: list[dict[str, Any]]) -> list[tuple[str, str]]:
 def parse_marker(text: str) -> dict[str, str] | None:
     """Extract the ``role``/``version``/``hash`` provenance marker, if present.
 
-    Returns ``None`` for text with no marker or a marker on a line other than
-    the first — a file without a leading HubICG marker is treated as
-    hand-authored and must not be overwritten by the future apply step.
+    Returns ``None`` when the file has no ``---``-fenced frontmatter starting
+    on its first line, or when that frontmatter has no HubICG marker comment
+    — a file without one is treated as hand-authored and must not be
+    overwritten by the apply step.
     """
-    first_line = text.split("\n", 1)[0]
-    match = MARKER.fullmatch(first_line)
-    if not match:
+    frontmatter_match = FRONTMATTER.match(text)
+    if not frontmatter_match:
         return None
-    return match.groupdict()
+    marker_match = MARKER.search(frontmatter_match.group("body"))
+    if not marker_match:
+        return None
+    return marker_match.groupdict()

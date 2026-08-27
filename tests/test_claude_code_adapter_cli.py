@@ -44,8 +44,10 @@ def test_propose_then_apply_writes_marked_subagent_file(tmp_path: Path) -> None:
     assert applied.returncode == 0
     exported = root / ".hubicg" / "exports" / "claude-code" / "one.md"
     assert exported.is_file()
-    assert exported.read_text(encoding="utf-8").startswith("<!-- hubicg:managed role=one ")
-    assert "Be useful." in exported.read_text(encoding="utf-8")
+    content = exported.read_text(encoding="utf-8")
+    assert content.startswith("---\n"), "frontmatter must be the first thing in the file"
+    assert "# hubicg:managed role=one " in content
+    assert "Be useful." in content
 
 
 def test_diff_is_unchanged_after_apply_with_no_role_changes(tmp_path: Path) -> None:
