@@ -1,6 +1,6 @@
 # ADR-002 — Fronteira de adaptadores para ferramentas de IA (Claude, Codex e outras)
 
-- **Estado:** proposto
+- **Estado:** aceito
 - **Data:** 27/08/2026
 - **Decisores:** Paulo Cesar Benjamin Junior, core maintainer
 
