@@ -46,6 +46,11 @@ hubicg --root . config diff examples/config.proposed.json
 hubicg --root . config propose examples/config.proposed.json
 # Review the proposal, then use its printed ID:
 hubicg --root . config apply --approval <proposal-id>
+hubicg --root . adapters claude-code diff
+hubicg --root . adapters codex diff
+# Review and create a governed Codex export proposal:
+hubicg --root . adapters codex propose
+hubicg --root . adapters codex apply --approval <proposal-id>
 hubicg --root . evidence verify
 hubicg --root . evidence changes verify
 ```
@@ -66,6 +71,9 @@ Use `--json` before the command for machine-readable output.
 - [ADR-001: local role storage](docs/adr/ADR-001-local-role-storage.md)
 - [ADR-002: tool adapter boundary](docs/adr/ADR-002-tool-adapter-boundary.md)
 - [Claude Code adapter study](docs/architecture/CLAUDE-CODE-ADAPTER-STUDY.md)
+- [Codex adapter design](docs/architecture/CODEX-ADAPTER-DESIGN.md)
+- [ADR-003: Claude Code adapter](docs/adr/ADR-003-claude-code-adapter.md)
+- [ADR-004: Codex custom-agent adapter](docs/adr/ADR-004-codex-custom-agent-adapter.md)
 - [Role schema and compatibility](docs/ROLE-SCHEMA-COMPATIBILITY.md)
 - [Installation](docs/INSTALLATION.md)
 - [Upgrade and rollback](docs/UPGRADE-ROLLBACK.md)

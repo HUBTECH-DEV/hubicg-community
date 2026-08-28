@@ -15,6 +15,8 @@
 - Integrity-checked role backup, deterministic export and approved restore.
 - Hash-chained evidence for approved configuration changes.
 - Reproducible release build, isolated wheel smoke test and build provenance.
+- Governed Claude Code and Codex role adapters with deterministic exports,
+  human approval, managed-file protection and hash-chained evidence.
 
 ## [0.1.0] — 2026-08-07
 

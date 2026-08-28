@@ -14,6 +14,7 @@ corrects on that point).
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 from typing import Any
 
@@ -24,8 +25,24 @@ MARKER = re.compile(
 )
 
 
-def content_hash(name: str, instructions: str) -> str:
-    digest = hashlib.sha256(f"{name}\n{instructions}".encode("utf-8")).hexdigest()
+def content_hash(
+    name: str,
+    instructions: str,
+    tags: list[str] | None = None,
+    capabilities: list[str] | None = None,
+    role_id: str = "",
+    version: str = "1",
+) -> str:
+    payload = {
+        "id": role_id,
+        "name": name,
+        "instructions": instructions,
+        "version": version,
+        "tags": list(tags or []),
+        "capabilities": list(capabilities or []),
+    }
+    canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
     return f"sha256:{digest}"
 
 
@@ -40,10 +57,12 @@ def render_subagent(role: dict[str, Any]) -> str:
     name = role["name"]
     instructions = role["instructions"]
     version = role.get("version", "1")
-    description = ", ".join([*role.get("tags", []), *role.get("capabilities", [])]) or role_id
+    tags = role.get("tags", [])
+    capabilities = role.get("capabilities", [])
+    description = ", ".join([*tags, *capabilities]) or role_id
     marker = (
         f"<!-- hubicg:managed role={role_id} version={version} "
-        f"hash={content_hash(name, instructions)} -->"
+        f"hash={content_hash(name, instructions, tags, capabilities, role_id, version)} -->"
     )
     frontmatter = f"---\nname: {role_id}\ndescription: {description}\n---"
     return f"{marker}\n{frontmatter}\n\n{instructions}\n"

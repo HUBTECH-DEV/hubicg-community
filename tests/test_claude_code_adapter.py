@@ -13,7 +13,9 @@ ROLE = {
 
 def test_render_subagent_golden() -> None:
     rendered = render_subagent(ROLE)
-    expected_hash = content_hash(ROLE["name"], ROLE["instructions"])
+    expected_hash = content_hash(
+        ROLE["name"], ROLE["instructions"], ROLE["tags"], ROLE["capabilities"], ROLE["id"], ROLE["version"]
+    )
     assert rendered == (
         f"<!-- hubicg:managed role=principal-git-engineer version=1.0.0 hash={expected_hash} -->\n"
         "---\n"
@@ -34,6 +36,20 @@ def test_render_subagent_hash_changes_with_instructions() -> None:
     assert render_subagent(ROLE) != render_subagent(changed)
 
 
+def test_render_subagent_hash_changes_with_tags_or_capabilities() -> None:
+    original_hash = parse_marker(render_subagent(ROLE))["hash"]
+    changed_tags = {**ROLE, "tags": ["git"]}
+    changed_capabilities = {**ROLE, "capabilities": ["branch-strategy", "code-review"]}
+    assert parse_marker(render_subagent(changed_tags))["hash"] != original_hash
+    assert parse_marker(render_subagent(changed_capabilities))["hash"] != original_hash
+
+
+def test_render_subagent_hash_changes_with_id_or_version() -> None:
+    original_hash = parse_marker(render_subagent(ROLE))["hash"]
+    assert parse_marker(render_subagent({**ROLE, "id": "other-role"}))["hash"] != original_hash
+    assert parse_marker(render_subagent({**ROLE, "version": "2.0.0"}))["hash"] != original_hash
+
+
 def test_render_subagent_falls_back_to_id_without_tags_or_capabilities() -> None:
     minimal = {
         "schemaVersion": "1.0", "id": "bare-role", "name": "Bare Role",
@@ -49,7 +65,9 @@ def test_parse_marker_round_trips_generated_output() -> None:
     assert marker == {
         "role": "principal-git-engineer",
         "version": "1.0.0",
-        "hash": content_hash(ROLE["name"], ROLE["instructions"])[len("sha256:"):],
+        "hash": content_hash(
+            ROLE["name"], ROLE["instructions"], ROLE["tags"], ROLE["capabilities"], ROLE["id"], ROLE["version"]
+        )[len("sha256:"):],
     }
 
 

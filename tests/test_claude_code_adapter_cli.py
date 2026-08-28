@@ -83,6 +83,17 @@ def test_apply_never_deletes_a_file_without_the_hubicg_marker(tmp_path: Path) ->
     assert not (root / ".hubicg" / "exports" / "claude-code" / "one.md").exists()
 
 
+def test_apply_refuses_to_overwrite_unmanaged_file_with_same_role_id(tmp_path: Path) -> None:
+    root = project(tmp_path)
+    export = root / ".hubicg" / "exports" / "claude-code" / "one.md"
+    export.parent.mkdir(parents=True)
+    export.write_text("Hand-authored.\n", encoding="utf-8")
+    result = propose_and_apply(root)
+    assert result.returncode == 1
+    assert "unmanaged Claude Code export" in result.stderr
+    assert export.read_text(encoding="utf-8") == "Hand-authored.\n"
+
+
 def test_apply_records_verifiable_change_evidence(tmp_path: Path) -> None:
     root = project(tmp_path)
     propose_and_apply(root)

@@ -56,13 +56,30 @@ marker this adapter writes, so hand-authored files are never touched. See
 `docs/architecture/CLAUDE-CODE-ADAPTER-STUDY.md`. Writing directly into a
 project's `.claude/agents/` remains a separate, undecided increment.
 
+## Codex custom-agent adapter
+
+```text
+hubicg adapters codex diff
+hubicg adapters codex propose
+hubicg adapters codex apply --approval PROPOSAL_ID
+```
+
+Renders every valid local role as a Codex custom-agent TOML file under
+`.hubicg/exports/codex/<role-id>.toml`. The TOML contains only `name`,
+`description` and `developer_instructions`; it does not infer model, reasoning
+effort, sandbox, MCP, skills or credentials. Conflicts and normalized-name
+collisions block the complete proposal. Apply preserves unmanaged files and
+removes only orphaned files carrying the Codex adapter's provenance marker.
+Writing into `.codex/agents/` remains a separate increment.
+
 ## Change evidence
 
 ```text
 hubicg evidence changes verify
 ```
 
-Every approved `config apply` or `adapters claude-code apply` appends a
+Every approved `config apply`, `adapters claude-code apply` or
+`adapters codex apply` appends a
 hash-chained event containing the proposal ID and the before/after content
 hashes. Evidence contains no prompt or chat content.
 
