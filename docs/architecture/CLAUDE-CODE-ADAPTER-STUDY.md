@@ -130,11 +130,29 @@ cobrir toda superfície de configuração do Claude Code.
 - validação de que o frontmatter gerado é YAML válido com os campos que o
   Claude Code exige.
 
+## Ativação em `.claude/agents/`: decidido como passo manual, não como código do `hubicg`
+
+O incremento implementado escreve em `.hubicg/exports/claude-code/` e para
+por aí — de propósito. Fazer o Claude Code de fato enxergar o subagente
+exige um arquivo em `.claude/agents/`, fora de `.hubicg/`, e nenhum código do
+`hubicg` pode escrever lá sem violar a garantia testada de
+"never write outside `.hubicg/`". A saída adotada (documentada em
+`docs/CLI-CONTRACT.md`, seção "Activating exported agents in Claude Code") é
+um passo humano, fora do pacote `hubicg`: symlink (Linux/macOS) ou cópia
+(Windows) de `.hubicg/exports/claude-code/*.md` para `.claude/agents/`. Isso
+não é uma limitação temporária a resolver na ADR-003 — é a fronteira que a
+própria ADR-002 já define entre o núcleo/adaptador e a ferramenta final.
+
 ## Itens em aberto para a ADR-003
 
-- exportar para o escopo de projeto (`.claude/agents/`) e/ou usuário
-  (`~/.claude/agents/`) — provavelmente projeto por padrão, usuário como
-  opção explícita;
+- se vale a pena um comando `hubicg adapters claude-code install` que faz o
+  symlink/cópia acima automaticamente — ele escreveria fora de `.hubicg/`
+  por design, então precisa de aprovação humana explícita por invocação, não
+  do fluxo `propose`/`apply` (que já pressupõe escrita restrita a
+  `.hubicg/`); ficou de fora deste incremento para não misturar as duas
+  garantias na mesma função;
+- exportar também para o escopo de usuário (`~/.claude/agents/`), hoje só
+  documentado para escopo de projeto;
 - se `roles select` deve ganhar um modo "exportar tudo que bate no filtro"
   distinto do `--count` usado para leitura humana;
 - nome exato do comando (`adapters claude-code` vs. `export claude-code`) —
