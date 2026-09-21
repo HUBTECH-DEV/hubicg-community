@@ -1,5 +1,22 @@
-* @paullobenjamin
-/.github/ @paullobenjamin
-/SECURITY.md @paullobenjamin
-/LICENSING.md @paullobenjamin
-/LICENSE* @paullobenjamin
+# Code owners do HubICG Community.
+#
+# Cada caminho lista mais de uma pessoa por necessidade, não por formalidade.
+# O ruleset `main-protection` exige `require_code_owner_review`, e o GitHub não
+# permite aprovar o próprio pull request. Com um único code owner, que também é
+# quem escreve a maior parte do código, a regra ficava impossível de cumprir:
+# todo merge precisava de bypass pelo time HubICG Core Maintainers.
+#
+# Regra que só pode ser contornada não protege nada — ela apenas registra que
+# foi contornada. Com mais de um nome por caminho, a revisão volta a ser
+# exequível e o bypass volta a ser exceção.
+#
+# Basta a aprovação de UM dos listados. Ambos já têm permissão de admin no
+# repositório, então a aprovação é válida para o ruleset.
+
+* @paullobenjamin @pedrohbenjamin-ship-it @halinibenjamin-pm
+
+# Caminhos sensíveis: governança, segurança e licenciamento.
+/.github/ @paullobenjamin @pedrohbenjamin-ship-it
+/SECURITY.md @paullobenjamin @pedrohbenjamin-ship-it
+/LICENSING.md @paullobenjamin @pedrohbenjamin-ship-it
+/LICENSE* @paullobenjamin @pedrohbenjamin-ship-it
