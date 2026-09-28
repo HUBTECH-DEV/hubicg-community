@@ -7,6 +7,8 @@ import difflib
 import hashlib
 import json
 import os
+import re
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -16,13 +18,25 @@ from pathlib import Path
 from typing import Any
 
 from .adapters.claude_code import find_conflicts, parse_marker, render_subagent
-from .change_evidence import record_claude_code_export, record_config_change, verify_events
+from .adapters.codex import (
+    find_conflicts as find_codex_conflicts,
+    find_name_collisions,
+    parse_marker as parse_codex_marker,
+    render_custom_agent,
+)
+from .change_evidence import (
+    record_claude_code_export,
+    record_codex_export,
+    record_config_change,
+    verify_events,
+)
 from .filenames import load_policy, repository_paths, validate_paths
 from .role_schema import validate_role
 from .role_selection import select_roles
 from .role_store import RoleRecord, SQLiteRoleRepository
 
 EXIT_INVALID, EXIT_USAGE, EXIT_APPROVAL, EXIT_EXTERNAL = 1, 2, 3, 4
+ROLE_ID = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 
 class HubICGError(RuntimeError):
@@ -111,6 +125,63 @@ def atomic_text(path: Path, content: str) -> None:
     finally:
         if os.path.exists(temp_name):
             os.unlink(temp_name)
+
+
+def atomic_export_set(
+    export_dir: Path,
+    suffix: str,
+    candidate: dict[str, str],
+    marker_parser: Any,
+) -> tuple[list[str], list[str]]:
+    """Publish a complete managed export set with directory-level rollback."""
+    export_dir.parent.mkdir(parents=True, exist_ok=True)
+    existing_paths = sorted(export_dir.iterdir()) if export_dir.exists() else []
+    for path in existing_paths:
+        if path.is_symlink() or not path.is_file():
+            raise HubICGError(f"refusing non-regular export entry: {path}")
+
+    stage = Path(tempfile.mkdtemp(prefix=f".{export_dir.name}-stage-", dir=export_dir.parent))
+    backup_holder = Path(tempfile.mkdtemp(prefix=f".{export_dir.name}-backup-", dir=export_dir.parent))
+    backup_holder.rmdir()
+    moved_original = False
+    try:
+        for path in existing_paths:
+            shutil.copy2(path, stage / path.name)
+
+        removed: list[str] = []
+        for path in sorted(stage.glob(f"*{suffix}")):
+            role_id = path.name.removesuffix(suffix)
+            if role_id in candidate or marker_parser(path.read_text(encoding="utf-8")) is None:
+                continue
+            path.unlink()
+            removed.append(role_id)
+
+        for role_id, content in candidate.items():
+            atomic_text(stage / f"{role_id}{suffix}", content)
+
+        if export_dir.exists():
+            os.replace(export_dir, backup_holder)
+            moved_original = True
+        try:
+            os.replace(stage, export_dir)
+        except OSError:
+            if moved_original and not export_dir.exists():
+                os.replace(backup_holder, export_dir)
+                moved_original = False
+            raise
+
+        if moved_original:
+            shutil.rmtree(backup_holder)
+            moved_original = False
+        return sorted(candidate), sorted(removed)
+    finally:
+        if stage.exists():
+            shutil.rmtree(stage)
+        if backup_holder.exists():
+            if moved_original and not export_dir.exists():
+                os.replace(backup_holder, export_dir)
+            elif backup_holder.exists():
+                shutil.rmtree(backup_holder)
 
 
 def role_files(ctx: Context) -> list[Path]:
@@ -472,27 +543,25 @@ def claude_code_apply(ctx: Context, args: argparse.Namespace) -> None:
     if not isinstance(proposal, dict) or proposal.get("kind") != "claude-code-export":
         raise HubICGError("proposal is not a pending claude-code export", EXIT_APPROVAL)
     candidate = proposal.get("candidate")
-    valid_candidate = isinstance(candidate, dict) and all(isinstance(value, str) for value in candidate.values())
+    valid_candidate = isinstance(candidate, dict) and all(
+        isinstance(role_id, str) and ROLE_ID.fullmatch(role_id) and isinstance(value, str)
+        for role_id, value in candidate.items()
+    )
     if not valid_candidate or proposal.get("id") != approval or hashlib.sha256(canonical(candidate)).hexdigest()[:16] != approval:
         raise HubICGError("proposal integrity check failed", EXIT_APPROVAL)
 
     export_dir = claude_code_export_dir(ctx)
     before = claude_code_existing_exports(export_dir)
 
-    written: list[str] = []
     for role_id, content in candidate.items():
-        atomic_text(state_path(ctx, "exports", "claude-code", f"{role_id}.md"), content)
-        written.append(role_id)
+        target = state_path(ctx, "exports", "claude-code", f"{role_id}.md")
+        if target.is_symlink():
+            raise HubICGError(f"refusing symbolic link: {target}")
+        current = before.get(role_id)
+        if current is not None and current != content and parse_marker(current) is None:
+            raise HubICGError(f"refusing to overwrite unmanaged Claude Code export: {role_id}")
 
-    removed: list[str] = []
-    for path in sorted(export_dir.glob("*.md")) if export_dir.exists() else []:
-        role_id = path.stem
-        if role_id in candidate or path.is_symlink():
-            continue
-        if parse_marker(path.read_text(encoding="utf-8")) is None:
-            continue
-        path.unlink()
-        removed.append(role_id)
+    written, removed = atomic_export_set(export_dir, ".md", candidate, parse_marker)
 
     evidence_path = record_claude_code_export(
         state_path(ctx, "evidence"),
@@ -508,6 +577,111 @@ def claude_code_apply(ctx: Context, args: argparse.Namespace) -> None:
             "removed": sorted(removed), "evidence": str(evidence_path.relative_to(ctx.root)),
         },
         f"claude_code_export=applied approval={approval} written={len(written)} "
+        f"removed={len(removed)} evidence={evidence_path.relative_to(ctx.root)}",
+    )
+
+
+def codex_export_dir(ctx: Context) -> Path:
+    return state_path(ctx, "exports", "codex")
+
+
+def codex_export_candidate(ctx: Context) -> dict[str, str]:
+    roles = local_valid_roles(ctx)
+    conflicts = find_codex_conflicts(roles)
+    if conflicts:
+        pairs = ", ".join(f"{first}<->{second}" for first, second in conflicts)
+        raise HubICGError(f"conflicting roles cannot be exported together: {pairs}")
+    collisions = find_name_collisions(roles)
+    if collisions:
+        groups = ", ".join("<->".join(group) for group in collisions)
+        raise HubICGError(f"Codex agent name collisions: {groups}")
+    return {role["id"]: render_custom_agent(role) for role in roles}
+
+
+def codex_existing_exports(export_dir: Path) -> dict[str, str]:
+    if not export_dir.exists():
+        return {}
+    return {
+        path.stem: path.read_text(encoding="utf-8")
+        for path in sorted(export_dir.glob("*.toml"))
+        if not path.is_symlink()
+    }
+
+
+def codex_diff(ctx: Context, _args: argparse.Namespace) -> None:
+    candidate = codex_export_candidate(ctx)
+    existing = codex_existing_exports(codex_export_dir(ctx))
+    lines: list[str] = []
+    for role_id in sorted(set(candidate) | set(existing)):
+        before, after = existing.get(role_id, ""), candidate.get(role_id, "")
+        if before == after:
+            continue
+        lines.extend(difflib.unified_diff(
+            before.splitlines(), after.splitlines(),
+            fromfile=f"exports/codex/{role_id}.toml (current)",
+            tofile=f"exports/codex/{role_id}.toml (candidate)",
+            lineterm="",
+        ))
+    emit(ctx, {"changed": bool(lines), "diff": lines}, "\n".join(lines) if lines else "codex_export=unchanged")
+
+
+def codex_propose(ctx: Context, _args: argparse.Namespace) -> None:
+    candidate = codex_export_candidate(ctx)
+    proposal_id = hashlib.sha256(canonical(candidate)).hexdigest()[:16]
+    proposal = {"schemaVersion": "1.0", "id": proposal_id, "kind": "codex-export", "candidate": candidate}
+    target = state_path(ctx, "proposals", f"{proposal_id}.json")
+    atomic_json(target, proposal)
+    emit(
+        ctx,
+        {"status": "pending", "proposalId": proposal_id, "file": str(target.relative_to(ctx.root))},
+        f"proposal=pending id={proposal_id}",
+    )
+
+
+def codex_apply(ctx: Context, args: argparse.Namespace) -> None:
+    approval = args.approval.lower()
+    if len(approval) != 16 or any(char not in "0123456789abcdef" for char in approval):
+        raise HubICGError("a valid 16-character proposal ID is required", EXIT_APPROVAL)
+    proposal_path = state_path(ctx, "proposals", f"{approval}.json")
+    if not proposal_path.is_file():
+        raise HubICGError("approved proposal was not found", EXIT_APPROVAL)
+    proposal = read_json(proposal_path)
+    if not isinstance(proposal, dict) or proposal.get("kind") != "codex-export":
+        raise HubICGError("proposal is not a pending Codex export", EXIT_APPROVAL)
+    candidate = proposal.get("candidate")
+    valid_candidate = isinstance(candidate, dict) and all(
+        isinstance(role_id, str) and ROLE_ID.fullmatch(role_id) and isinstance(value, str)
+        for role_id, value in candidate.items()
+    )
+    if not valid_candidate or proposal.get("id") != approval or hashlib.sha256(canonical(candidate)).hexdigest()[:16] != approval:
+        raise HubICGError("proposal integrity check failed", EXIT_APPROVAL)
+
+    export_dir = codex_export_dir(ctx)
+    before = codex_existing_exports(export_dir)
+    for role_id, content in candidate.items():
+        target = state_path(ctx, "exports", "codex", f"{role_id}.toml")
+        if target.is_symlink():
+            raise HubICGError(f"refusing symbolic link: {target}")
+        current = before.get(role_id)
+        if current is not None and current != content and parse_codex_marker(current) is None:
+            raise HubICGError(f"refusing to overwrite unmanaged Codex export: {role_id}")
+
+    written, removed = atomic_export_set(export_dir, ".toml", candidate, parse_codex_marker)
+
+    evidence_path = record_codex_export(
+        state_path(ctx, "evidence"),
+        approval,
+        hashlib.sha256(canonical(before)).hexdigest(),
+        hashlib.sha256(canonical(candidate)).hexdigest(),
+    )
+    proposal_path.unlink()
+    emit(
+        ctx,
+        {
+            "status": "applied", "proposalId": approval, "written": sorted(written),
+            "removed": sorted(removed), "evidence": str(evidence_path.relative_to(ctx.root)),
+        },
+        f"codex_export=applied approval={approval} written={len(written)} "
         f"removed={len(removed)} evidence={evidence_path.relative_to(ctx.root)}",
     )
 
@@ -614,6 +788,12 @@ def build_parser() -> argparse.ArgumentParser:
     claude_code_apply_parser = claude_code.add_parser("apply")
     claude_code_apply_parser.add_argument("--approval", required=True)
     claude_code_apply_parser.set_defaults(handler=claude_code_apply)
+    codex = adapters.add_parser("codex").add_subparsers(dest="codex_command", required=True)
+    codex.add_parser("diff").set_defaults(handler=codex_diff)
+    codex.add_parser("propose").set_defaults(handler=codex_propose)
+    codex_apply_parser = codex.add_parser("apply")
+    codex_apply_parser.add_argument("--approval", required=True)
+    codex_apply_parser.set_defaults(handler=codex_apply)
     history = commands.add_parser("history").add_subparsers(dest="history_command", required=True)
     history.add_parser("verify").set_defaults(handler=history_verify)
     git = commands.add_parser("git").add_subparsers(dest="git_command", required=True)

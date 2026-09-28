@@ -2,7 +2,10 @@ import json
 import os
 import subprocess
 import sys
+import errno
 from pathlib import Path
+
+import pytest
 
 from hubicg.role_store import SQLiteRoleRepository
 
@@ -194,7 +197,12 @@ def test_symlinked_role_is_ignored(tmp_path: Path) -> None:
     root = project(tmp_path)
     outside = tmp_path / "outside.json"
     outside.write_text("{}", encoding="utf-8")
-    (root / ".hubicg" / "roles" / "escape.json").symlink_to(outside)
+    try:
+        (root / ".hubicg" / "roles" / "escape.json").symlink_to(outside)
+    except OSError as error:
+        if error.errno in {errno.EPERM, errno.EACCES} or getattr(error, "winerror", None) == 1314:
+            pytest.skip("symbolic links are unavailable in this environment")
+        raise
     assert run(root, "roles", "verify").returncode == 0
 
 

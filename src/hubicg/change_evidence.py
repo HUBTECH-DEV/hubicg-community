@@ -102,3 +102,12 @@ def record_claude_code_export(
     after_hash: str,
 ) -> Path:
     return _record_event(directory, "claude-code-export-applied", proposal_id, before_hash, after_hash)
+
+
+def record_codex_export(
+    directory: Path,
+    proposal_id: str,
+    before_hash: str,
+    after_hash: str,
+) -> Path:
+    return _record_event(directory, "codex-export-applied", proposal_id, before_hash, after_hash)
