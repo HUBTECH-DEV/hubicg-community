@@ -4,7 +4,29 @@ updates:
     directory: /
     schedule: {interval: weekly}
     open-pull-requests-limit: 5
+    groups:
+      python-dependencies:
+        patterns:
+          - "*"
+
   - package-ecosystem: github-actions
     directory: /
     schedule: {interval: weekly}
     open-pull-requests-limit: 5
+    groups:
+      # `github/codeql-action/init` e `github/codeql-action/analyze` são
+      # dependências distintas para o Dependabot, mas a mesma action em tempo de
+      # execução: o CodeQL recusa rodar com `init` e `analyze` em versões
+      # diferentes, com "Loaded a configuration file for version X, but running
+      # version Y". Sem este grupo, o Dependabot abre um pull request por
+      # caminho, cada um deixando o par desalinhado, e os dois se bloqueiam
+      # mutuamente — fechar um não destrava o outro.
+      #
+      # O grupo precisa vir antes do curinga: o Dependabot atribui cada
+      # dependência ao primeiro grupo cujo padrão casar.
+      codeql-action:
+        patterns:
+          - "github/codeql-action*"
+      actions:
+        patterns:
+          - "*"
