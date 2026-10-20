@@ -29,6 +29,13 @@ PATHS = [
     "Makefile",
 ]
 
+PATHS += sorted(
+    path.relative_to(ROOT).as_posix()
+    for path in (ROOT / ".hubicg" / "roles").glob("*.json")
+    if path.relative_to(ROOT).as_posix() not in PATHS
+)
+
+
 def content() -> str:
     lines = []
     for relative in PATHS:
