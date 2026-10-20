@@ -1,6 +1,7 @@
 """Public role discovery and integrity coverage."""
 import hashlib
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -15,7 +16,7 @@ def test_every_public_role_is_covered_by_release_manifest():
 
 
 def test_promoted_roles_are_discoverable_by_cli():
-    result = subprocess.run([sys.executable, "-m", "hubicg", "--root", str(ROOT), "--json", "roles", "list"], capture_output=True, text=True, encoding="utf-8", check=True)
+    result = subprocess.run([sys.executable, "-m", "hubicg", "--root", str(ROOT), "--json", "roles", "list"], capture_output=True, text=True, encoding="utf-8", check=True, env={**os.environ, "PYTHONPATH": str(ROOT / "src"), "PYTHONIOENCODING": "utf-8"})
     ids = {role["id"] for role in json.loads(result.stdout)["roles"]}
     for role in (ROOT / ".hubicg/roles").glob("*.json"):
         assert json.loads(role.read_text(encoding="utf-8"))["id"] in ids
