@@ -16,3 +16,4 @@ dist/
 *.key
 .env
 .env.*
+.station-work/
