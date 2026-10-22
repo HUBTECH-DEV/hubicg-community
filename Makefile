@@ -1,9 +1,12 @@
-.PHONY: test check build manifest release-candidate
+.PHONY: test check build manifest release-candidate station-test
 
 RELEASE_EPOCH ?= 1767225600
 
 test:
 	python3 -m pytest
+
+station-test:
+	HUBICG_STATION_ENGINE_TESTS=1 python3 -m pytest tests/test_station_installer.py tests/test_station_public_agents.py tests/test_station_ui_linux.py tests/test_station_ui_windows.py tests/test_station_simulator.py
 
 check:
 	python3 -m compileall -q src scripts tests

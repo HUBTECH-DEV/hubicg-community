@@ -1,0 +1,455 @@
+"""Interface L1 (zenity, kdialog e terminal) do instalador da estacao, contra o motor simulado."""
+
+from __future__ import annotations
+
+import importlib.util
+import io
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import textwrap
+import time
+import unittest
+from pathlib import Path
+from unittest import mock
+
+
+ROOT = Path(__file__).resolve().parents[1]
+LINUX = ROOT / "installers" / "station" / "ui" / "linux"
+SIMULATOR = ROOT / "tests" / "fixtures" / "station" / "simulated_engine.py"
+
+spec = importlib.util.spec_from_file_location("hubicg_station_ui", LINUX / "hubicg_station_ui.py")
+ui = importlib.util.module_from_spec(spec)
+assert spec.loader is not None
+spec.loader.exec_module(ui)
+
+
+def event(seq: int, type_: str, step: str = "", status: str = "", **data: object) -> dict:
+    return {"schema": "hubicg.station.event/1", "runId": "r", "seq": seq, "ts": "2026-10-22T00:00:00Z",
+            "type": type_, "step": step, "status": status, "message": "", "data": data}
+
+
+class SimulatorEnvironment:
+    """Isola o estado do motor simulado num diretorio temporario."""
+
+    def __init__(self, os_name: str = "linux", scenario: str = "default") -> None:
+        self.temp = tempfile.TemporaryDirectory()
+        self.patch = mock.patch.dict(os.environ, {
+            "HUBICG_STATION_SIM_STATE": str(Path(self.temp.name) / "state.json"),
+            "HUBICG_STATION_SIM_OS": os_name,
+            "HUBICG_STATION_SIM_SCENARIO": scenario,
+            "HUBICG_STATION_SIM_CODE_WAIT": "0",
+            "HUBICG_STATION_SIM_BROWSER_OPENED": "1",
+        })
+
+    def __enter__(self) -> Path:
+        self.patch.start()
+        return Path(self.temp.name)
+
+    def __exit__(self, *exc: object) -> None:
+        self.patch.stop()
+        self.temp.cleanup()
+
+
+class CoreTests(unittest.TestCase):
+    def test_unknown_status_cannot_finish_successfully(self) -> None:
+        state = ui.RunState()
+        state.apply(event(1, "step_end", "agents", "future_status"))
+        state.apply(event(2, "run_end", exitCode=0))
+        self.assertEqual(state.complete(0), 1)
+        self.assertEqual(ui.Texts().status(state.status["agents"])["group"], "failed")
+        self.assertNotEqual(ui.Texts().exit_message(state.exit_code), ui.Texts().exit_message(0))
+
+    def setUp(self) -> None:
+        self.texts = ui.Texts()
+
+    def test_parse_event_ignores_noise_and_tolerates_unknown_fields(self) -> None:
+        self.assertIsNone(ui.parse_event(""))
+        self.assertIsNone(ui.parse_event("texto"))
+        self.assertIsNone(ui.parse_event('{"schema":"outro/1","type":"log"}'))
+        parsed = ui.parse_event(json.dumps({**event(1, "log", "git", "warn"), "novo": True}))
+        self.assertEqual(parsed["type"], "log")
+
+    def test_status_and_exit_texts(self) -> None:
+        self.assertEqual(self.texts.status("already")["label"], "Já estava")
+        self.assertEqual(self.texts.status("status_novo")["group"], "failed")
+        self.assertIn("77", self.texts.exit_message(77))
+        guide = self.texts.action_guide({"id": "pedido-novo", "kind": "run_in_terminal"})
+        self.assertEqual(guide["title"], self.texts["kinds"]["run_in_terminal"]["title"])
+
+    def test_state_tracks_gaps_blocking_and_interruption(self) -> None:
+        state = ui.RunState()
+        state.apply(event(1, "run_start", mode="apply", os="linux", steps=["environment", "gh-auth"],
+                          repoDir="/r", configDir="/c", logFile="/l", engine="x", contract=1, interactive=False))
+        state.apply(event(3, "step_start", "gh-auth", index=2, total=2))
+        state.apply(event(4, "action_required", "gh-auth", "action_required", id="gh-login",
+                          kind="browser_code", blocking=True, code="ABCD-1234"))
+        self.assertEqual(state.gaps, 1)
+        self.assertEqual(state.blocking["code"], "ABCD-1234")
+        state.apply(event(5, "action_resolved", "gh-auth", "completed", id="gh-login"))
+        self.assertIsNone(state.blocking)
+        self.assertEqual(state.complete(-15), 130)
+
+    def test_arguments_answers_and_selection(self) -> None:
+        self.assertEqual(ui.engine_arguments("check"), ["--check", "--json", "--non-interactive"])
+        self.assertEqual(ui.engine_arguments("apply", ["git", "gh"], "/x y", "/a.json"),
+                         ["--json", "--non-interactive", "--only", "git,gh", "--repo-dir", "/x y",
+                          "--answers-file", "/a.json"])
+        self.assertEqual(ui.engine_command(Path("/m/hubicg-station.sh"), ["--json"])[0], "bash")
+        self.assertTrue(ui.validate_answer("email", "maria@exemplo.com.br", True))
+        self.assertFalse(ui.validate_answer("email", "maria", True))
+        self.assertFalse(ui.validate_answer("string", " ", True))
+        with tempfile.TemporaryDirectory() as directory:
+            path = ui.write_answers_file({"git.name": " Maria ", "desktop.loginConfirmed": True}, directory)
+            document = json.loads(Path(path).read_text(encoding="utf-8"))
+            self.assertEqual(document["schema"], "hubicg.station.answers/1")
+            self.assertEqual(document["answers"]["git.name"], "Maria")
+            if os.name == "posix":
+                self.assertEqual(os.stat(path).st_mode & 0o777, 0o600)
+
+    def test_missing_step_end_is_recovered_and_visible_in_summary(self) -> None:
+        state = ui.RunState()
+        state.apply(event(1, "run_start", steps=["git"]))
+        state.apply(event(2, "step_start", "git", index=1, total=1))
+        state.apply(event(4, "run_end", exitCode=0, steps={"git": "installed"}))
+        self.assertEqual(state.gaps, 1)
+        self.assertEqual(state.status["git"], "installed")
+        self.assertEqual(state.recovered, ["git"])
+        self.assertEqual(ui.summary(self.texts, state)["done"][0]["step"], "git")
+        text = ui.TerminalFrontend(self.texts).summary_text(state, "")
+        self.assertIn("Relatório incompleto", text)
+        self.assertIn("detalhes indisponíveis", text)
+        frontend = ui.ZenityFrontend(self.texts)
+        with mock.patch.object(frontend, "call", return_value=(0, "")) as call:
+            frontend.summary(state, "")
+        self.assertTrue(any("Relatório incompleto" in arg for arg in call.call_args.args[0]))
+
+    def test_environment_rows_explain_problems(self) -> None:
+        rows = ui.environment_rows(self.texts, {
+            "os": "linux", "osVersion": "24.04", "arch": "x86_64", "sudo": "absent", "packageManager": None,
+            "diskFreeGB": 2.0, "proxy": {"HTTPS_PROXY": "http://***@proxy:8080"}, "tls": "inspected",
+            "network": {"github.com": {"verdict": "unreachable"}}, "tools": {"git": None},
+        })
+        by_item = {row["item"]: row for row in rows}
+        self.assertEqual(by_item["Sistema"]["value"], "Linux 24.04 (x86_64)")
+        warnings = [row for row in rows if row["severity"] in ("warn", "error")]
+        self.assertGreaterEqual(len(warnings), 5)
+        self.assertTrue(all(row["explain"] for row in warnings))
+
+
+class TerminalWizardTests(unittest.TestCase):
+    """O fluxo inteiro da L1 no modo terminal, com respostas digitadas."""
+
+    def run_wizard(self, typed: str, os_name: str = "linux", scenario: str = "default") -> tuple[int, str]:
+        with SimulatorEnvironment(os_name, scenario) as state_dir:
+            answers_dir = state_dir / "answers"
+            answers_dir.mkdir()
+            output = io.StringIO()
+            frontend = ui.TerminalFrontend(ui.Texts(), stdin=io.StringIO(typed), stdout=output)
+            wizard = ui.Wizard(frontend, SIMULATOR, ui.Texts())
+            with mock.patch.object(ui.tempfile, "tempdir", str(answers_dir)):
+                code = wizard.start()
+            self.assertEqual(list(answers_dir.iterdir()), [], "o arquivo de respostas precisa ser apagado")
+            return code, output.getvalue()
+
+    def test_full_cycle_with_pending_actions_and_idempotent_rerun(self) -> None:
+        typed = "\n".join([
+            "s",                    # verificar o computador
+            "a",                    # avancar
+            "",                     # manter a selecao
+            "/tmp/hubicg-teste",    # pasta do clone
+            "s",                    # instalar
+            "Maria Silva",          # git.name
+            "maria",                # e-mail invalido: pergunta de novo
+            "maria@exemplo.com.br",
+            "s",                    # claude.addToPath
+            "s",                    # verificar e continuar
+            # claude-cli-auth so roda depois do PATH resolvido (dependencia): aparece na 2a rodada.
+            "",                     # Enter depois do claude auth login
+            "s",                    # verificar e continuar
+            "r",                    # rodar de novo
+            "c",                    # concluir
+        ]) + "\n"
+        code, output = self.run_wizard(typed)
+        self.assertEqual(code, 0, output)
+        self.assertIn("Este e-mail não parece válido.", output)
+        self.assertIn("Código: ABCD-1234", output)
+        self.assertIn("Claude Desktop", output)
+        self.assertIn("Não se aplica a este sistema", output)
+        resumes = output.split("Resumo\n======")
+        self.assertEqual(len(resumes), 3)
+        self.assertIn("Instalado ou configurado agora (8)", resumes[1])
+        self.assertIn("Já estava pronto ou não se aplica (11)", resumes[2])
+
+    def test_failure_is_explained_in_the_summary(self) -> None:
+        typed = "s\na\n\n/tmp/hubicg-teste\ns\n\n\n\nn\nc\n"
+        code, output = self.run_wizard(typed, scenario="fail")
+        self.assertEqual(code, 1, output)
+        self.assertIn("Falhou", output)
+        self.assertIn("O que deu errado:", output)
+        self.assertIn("schannel", output)
+
+    def test_unsupported_system_stops_before_any_step(self) -> None:
+        code, output = self.run_wizard("s\n", scenario="unsupported-os")
+        self.assertEqual(code, 4)
+        self.assertIn("Não é possível continuar", output)
+
+
+class FrontendSelectionTests(unittest.TestCase):
+    def test_kde_prefers_kdialog_and_no_display_falls_back_to_terminal(self) -> None:
+        texts = ui.Texts()
+        tools = {"zenity": "/usr/bin/zenity", "kdialog": "/usr/bin/kdialog", "qdbus": "/usr/bin/qdbus"}
+        with mock.patch.object(ui, "which", side_effect=tools.get):
+            with mock.patch.dict(os.environ, {"DISPLAY": ":0", "XDG_CURRENT_DESKTOP": "KDE"}, clear=True):
+                self.assertEqual(ui.choose_frontend("auto", texts).name, "kdialog")
+            with mock.patch.dict(os.environ, {"WAYLAND_DISPLAY": "wayland-0", "XDG_CURRENT_DESKTOP": "ubuntu:GNOME"}, clear=True):
+                self.assertEqual(ui.choose_frontend("auto", texts).name, "zenity")
+            with mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(ui.sys.stdin, "isatty", return_value=True):
+                self.assertEqual(ui.choose_frontend("auto", texts).name, "terminal")
+
+    def test_kde_without_qdbus_uses_zenity_or_terminal(self) -> None:
+        texts = ui.Texts()
+        tools = {"zenity": "/usr/bin/zenity", "kdialog": "/usr/bin/kdialog"}
+        with mock.patch.object(ui, "which", side_effect=tools.get), \
+                mock.patch.dict(os.environ, {"DISPLAY": ":0", "XDG_CURRENT_DESKTOP": "KDE"}, clear=True), \
+                mock.patch.object(ui.sys.stdin, "isatty", return_value=True):
+            self.assertEqual(ui.choose_frontend("auto", texts).name, "zenity")
+            del tools["zenity"]
+            self.assertEqual(ui.choose_frontend("auto", texts).name, "terminal")
+
+    def test_kdialog_progress_failure_falls_back_before_starting_engine(self) -> None:
+        texts = ui.Texts()
+        tools = {"zenity": "/usr/bin/zenity", "kdialog": "/usr/bin/kdialog"}
+        for qdbus, result in ((None, (0, "")), ("qdbus", (1, "")), ("qdbus", (0, "invalid"))):
+            with self.subTest(qdbus=qdbus, result=result):
+                frontend = ui.KdialogFrontend(texts)
+                run = ui.EngineRun(SIMULATOR, [])
+                with mock.patch.object(frontend, "qdbus", return_value=qdbus), \
+                        mock.patch.object(frontend, "call", return_value=result), \
+                        mock.patch.object(ui, "which", side_effect=tools.get), \
+                        mock.patch.object(ui.ZenityFrontend, "run", return_value=run.state) as fallback, \
+                        mock.patch.object(run, "run") as launch:
+                    self.assertIs(frontend.run("Progresso", run), run.state)
+                fallback.assert_called_once_with("Progresso", run, None)
+                launch.assert_not_called()
+
+        frontend = ui.KdialogFrontend(texts)
+        run = ui.EngineRun(SIMULATOR, [])
+        with mock.patch.object(frontend, "qdbus", return_value=None), \
+                mock.patch.object(ui, "which", return_value=None), \
+                mock.patch.object(ui.sys.stdin, "isatty", return_value=True), \
+                mock.patch.object(ui.TerminalFrontend, "run", return_value=run.state) as fallback:
+            self.assertIs(frontend.run("Progresso", run), run.state)
+        fallback.assert_called_once_with("Progresso", run, None)
+
+    def test_desktop_entry_exec_resolves_to_the_launcher(self) -> None:
+        """Exec segue a especificacao .desktop: escape do valor, depois aspas do Exec."""
+        entry = (LINUX / "hubicg-station.desktop").read_text(encoding="utf-8")
+        exec_line = next(line[5:] for line in entry.splitlines() if line.startswith("Exec="))
+        value = exec_line.replace("\\\\", "\\")
+        arguments, current, quoted, index = [], "", False, 0
+        while index < len(value):
+            char = value[index]
+            if quoted and char == "\\":
+                index += 1
+                current += value[index]
+            elif char == '"':
+                quoted = not quoted
+            elif char == " " and not quoted:
+                arguments.append(current)
+                current = ""
+            else:
+                current += char
+            index += 1
+        arguments.append(current)
+        self.assertEqual(arguments, ["sh", "-c", 'exec "$(dirname "$0")/hubicg-station-ui.sh"', "%k"])
+
+    @unittest.skipUnless(shutil.which("bash"), "requer bash")
+    def test_launcher_shell_syntax(self) -> None:
+        script = (LINUX / "hubicg-station-ui.sh").relative_to(ROOT).as_posix()
+        result = subprocess.run(["bash", "-n", script], cwd=ROOT, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    @unittest.skipUnless(os.name == "posix" and shutil.which("gio"), "executor .desktop GIO")
+    def test_shortcut_in_percent_directory_executes_original_launcher(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            folder = root / "path %f with spaces"
+            folder.mkdir()
+            launcher = folder / "hubicg-station-ui.sh"
+            shutil.copyfile(LINUX / launcher.name, launcher)
+            launcher.chmod(0o755)
+            environment = {**os.environ, "HOME": str(root), "XDG_DATA_HOME": str(root / "data")}
+            result = subprocess.run(["sh", str(launcher), "--criar-atalho"], env=environment,
+                                    capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            marker = root / "called"
+            launcher.write_text('#!/bin/sh\nprintf called > "' + str(marker) + '"\n', encoding="utf-8")
+            entry = root / "data/applications/hubicg-station.desktop"
+            self.assertIn("%%f", entry.read_text())
+            launched = subprocess.run(["gio", "launch", str(entry)], env=environment,
+                                      capture_output=True, text=True, timeout=10)
+            self.assertEqual(launched.returncode, 0, launched.stderr)
+            for _ in range(100):
+                if marker.exists():
+                    break
+                time.sleep(0.02)
+            self.assertEqual(marker.read_text(), "called")
+
+
+@unittest.skipUnless(os.name == "posix", "grupos de processos requerem POSIX")
+class EngineCleanupTests(unittest.TestCase):
+    def test_cancel_before_start_does_not_launch_engine(self) -> None:
+        run = ui.EngineRun(Path("unused.py"), [])
+        run.cancel()
+        with mock.patch.object(ui.subprocess, "Popen") as launch:
+            self.assertEqual(run.run(lambda *args: None).exit_code, 130)
+        launch.assert_not_called()
+
+    def test_cancel_during_creation_and_ignored_sigterm_are_bounded(self) -> None:
+        script = textwrap.dedent('''\
+            import json, signal, subprocess, sys, time
+            signal.signal(signal.SIGTERM, signal.SIG_IGN)
+            child = subprocess.Popen([sys.executable, "-c",
+                "import signal,time; signal.signal(signal.SIGTERM,signal.SIG_IGN); print('ready', flush=True); time.sleep(60)"],
+                stdout=subprocess.PIPE, text=True)
+            child.stdout.readline()
+            print(json.dumps({"schema": "hubicg.station.event/1", "type": "log",
+                              "data": {"childPid": child.pid}}), flush=True)
+            time.sleep(60)
+        ''')
+        with tempfile.TemporaryDirectory() as directory:
+            engine = Path(directory) / "engine.py"
+            engine.write_text(script, encoding="utf-8")
+            run = ui.EngineRun(engine, [])
+            child_pids = []
+
+            def cancel(state, event, kind):
+                child_pids.append(event["data"]["childPid"])
+                run.cancel()
+
+            started = time.monotonic()
+            self.assertEqual(run.run(cancel).exit_code, 130)
+            self.assertLess(time.monotonic() - started, 8)
+            self.assertIsNotNone(run.process.poll())
+            child_stat = Path(f"/proc/{child_pids[0]}/stat")
+            if child_stat.exists():
+                self.assertTrue(child_stat.read_text().split(") ", 1)[1].startswith("Z"))
+
+            # Simula pedido recebido enquanto Popen ainda não entregou o processo ao responsável.
+            run = ui.EngineRun(engine, [])
+            real_popen = subprocess.Popen
+
+            def launch(*args, **kwargs):
+                process = real_popen(*args, **kwargs)
+                run.cancel()
+                return process
+
+            with mock.patch.object(ui.subprocess, "Popen", side_effect=launch):
+                self.assertEqual(run.run(lambda *args: None).exit_code, 130)
+            self.assertIsNotNone(run.process.poll())
+
+    def test_callback_exception_and_interrupt_stop_engine_and_child(self) -> None:
+        script = textwrap.dedent('''\
+            import json, subprocess, sys, time
+            child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+            print(json.dumps({"schema": "hubicg.station.event/1", "type": "log",
+                              "data": {"childPid": child.pid}}), flush=True)
+            time.sleep(60)
+        ''')
+        for error in (RuntimeError, KeyboardInterrupt):
+            with self.subTest(error=error.__name__), tempfile.TemporaryDirectory() as directory:
+                engine = Path(directory) / "engine.py"
+                engine.write_text(script, encoding="utf-8")
+                run = ui.EngineRun(engine, [])
+                child_pids = []
+
+                def fail(state, event, kind):
+                    child_pids.append(event["data"]["childPid"])
+                    raise error("interrupcao de teste")
+
+                with self.assertRaises(error):
+                    run.run(fail)
+                self.assertIsNotNone(run.process.poll())
+                self.assertTrue(run.process.stdout.closed)
+                self.assertTrue(run.process.stderr.closed)
+                self.assertEqual(len(child_pids), 1)
+                child_stat = Path(f"/proc/{child_pids[0]}/stat")
+                deadline = time.monotonic() + 3
+                while child_stat.exists() and time.monotonic() < deadline:
+                    if child_stat.read_text().split(") ", 1)[1].startswith("Z"):
+                        break
+                    time.sleep(0.05)
+                if child_stat.exists():
+                    self.assertTrue(child_stat.read_text().split(") ", 1)[1].startswith("Z"),
+                                    "filho continua executando depois da interrupcao")
+
+
+FAKE_ZENITY = textwrap.dedent('''\
+    #!/usr/bin/env python3
+    """zenity falso: registra cada chamada e responde como uma pessoa que aceita os padroes."""
+    import json, os, sys, time
+    args = sys.argv[1:]
+    log = os.environ["FAKE_ZENITY_LOG"]
+    with open(log, "a", encoding="utf-8") as handle:
+        handle.write(json.dumps(args) + "\\n")
+    def has(text):
+        return any(text in arg for arg in args)
+    if "--progress" in args:
+        sys.stdin.read()
+        sys.exit(0)
+    if "--info" in args and has("Login no navegador"):
+        time.sleep(30)
+        sys.exit(0)
+    if "--checklist" in args:
+        rows = [a for a in args if not a.startswith("--")]
+        print(",".join(rows[i + 1] for i in range(0, len(rows), 4) if rows[i] == "TRUE"))
+        sys.exit(0)
+    if "--forms" in args:
+        print("Maria Silva\\tmaria@exemplo.com.br")
+        sys.exit(0)
+    if has("--ok-label=Abrir o terminal"):
+        sys.exit(1)
+    if "--list" in args and has("Resumo"):
+        counter = log + ".resumos"
+        seen = int(open(counter).read()) if os.path.exists(counter) else 0
+        open(counter, "w").write(str(seen + 1))
+        if seen == 0:
+            print("Rodar de novo")
+            sys.exit(1)
+    sys.exit(0)
+''')
+
+
+@unittest.skipUnless(os.name == "posix", "zenity falso precisa de um executavel com shebang")
+class ZenityWizardTests(unittest.TestCase):
+    def test_full_cycle_through_zenity(self) -> None:
+        with SimulatorEnvironment("linux") as state_dir:
+            bin_dir = state_dir / "bin"
+            bin_dir.mkdir()
+            fake = bin_dir / "zenity"
+            fake.write_text(FAKE_ZENITY, encoding="utf-8")
+            fake.chmod(0o755)
+            log = state_dir / "zenity.log"
+            # 1 s de espera no browser_code: tempo para o aviso do codigo abrir antes de ser fechado.
+            env = {"PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}", "FAKE_ZENITY_LOG": str(log),
+                   "HUBICG_STATION_SIM_CODE_WAIT": "1"}
+            with mock.patch.dict(os.environ, env), mock.patch.object(ui, "open_url"), \
+                    mock.patch.object(ui, "copy_to_clipboard", return_value=False):
+                code = ui.Wizard(ui.ZenityFrontend(ui.Texts()), SIMULATOR, ui.Texts()).start()
+            calls = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
+        self.assertEqual(code, 0)
+        titles = [next(a for a in call if a.startswith("--title=")).split("— ")[-1] for call in calls if any(a.startswith("--title=") for a in call)]
+        for expected in ("Boas-vindas", "Verificação", "Seleção", "Pasta do clone", "Login no navegador",
+                         "Pendências", "Identidade do Git", "Comando claude no PATH", "Login no Claude Code", "Resumo"):
+            self.assertIn(expected, titles)
+        code_dialog = next(call for call in calls if "--title=Instalador da estação HubICG — Login no navegador" in call)
+        self.assertTrue(any("ABCD-1234" in arg for arg in code_dialog))
+        self.assertFalse(any("--hide-text" in arg or "--password" in arg for call in calls for arg in call))
+
+
+if __name__ == "__main__":
+    unittest.main()

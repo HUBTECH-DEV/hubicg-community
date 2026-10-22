@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Instalar a estação HubICG
+Comment=Assistente do instalador da estação HubICG
+# %k é o caminho deste arquivo: o atalho funciona enquanto estiver na pasta do instalador.
+# Para um atalho fixo no menu e na área de trabalho, rode: ./hubicg-station-ui.sh --criar-atalho
+Exec=sh -c "exec \\"\\$(dirname \\"\\$0\\")/hubicg-station-ui.sh\\"" %k
+Icon=system-software-install
+Terminal=false
+Categories=Development;
