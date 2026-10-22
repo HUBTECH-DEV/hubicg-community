@@ -87,6 +87,12 @@ Não use a conta de trabalho para os logins quando a política exigir uma conta 
    Isso só vale com export presente e validado, agentes concretamente gravados e todos
    os logins resolvidos. Sem export, espere `agents-export` / `action_required`
    (código 3), registre aceite parcial e não marque "Tudo pronto" como atingido.
+   Leve também o recibo `.hubicg-station-export.json` dentro da pasta exportada.
+   Se a biblioteca do clone diferir da usada no host, espere `agents-export-stale`:
+   preserve o export anterior sob outro nome, gere novamente a partir desse clone
+   com Python 3.11+ explicitamente disponível (ou no host com o mesmo checkout),
+   entregue o novo export ao caminho padrão e repita a aplicação. Sem esse passo,
+   a atualização não atingiu o critério de sucesso.
 9. **Rodar de novo.** Esperado: o resumo mostra **todas** as etapas em "Já estava pronto ou não se aplica".
 10. **Interromper.** Rode de novo e clique em "Interromper" no meio: confirme a pergunta; o resumo diz que a
     execução foi interrompida e que rodar de novo é seguro. Rode de novo até "Tudo pronto".

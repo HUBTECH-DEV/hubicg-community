@@ -1,5 +1,6 @@
 """Public artifact integrity and export preserve user files."""
 import hashlib
+import json
 import re
 from pathlib import Path
 
@@ -26,6 +27,8 @@ def test_roles_and_foundations_are_delivered():
 
 def test_export_is_idempotent_and_preserves_edits(tmp_path: Path):
     export(tmp_path)
+    receipt = json.loads((tmp_path / ".hubicg-station-export.json").read_text())
+    assert receipt["libraryManifestSha256"] == load_packaged()[1]
     before = {path.name: path.stat().st_mtime_ns for path in tmp_path.glob("*.md")}
     export(tmp_path)
     assert before == {path.name: path.stat().st_mtime_ns for path in tmp_path.glob("*.md")}

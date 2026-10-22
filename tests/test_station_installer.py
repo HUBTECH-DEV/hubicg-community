@@ -18,6 +18,7 @@ só com ``HUBICG_STATION_ENGINE_TESTS=1`` (``make station-test`` e o workflow
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import platform
 import shlex
@@ -115,7 +116,7 @@ class JsonBashTests(unittest.TestCase):
 
 ESSENCIAIS_POSIX = (
     "bash sh sed grep awk tr head tail date df dirname basename mkdir rm mv cp cat ls sort cmp "
-    "mktemp sha256sum shasum env uname printenv install tee timeout sleep"
+    "mktemp mkfifo sha256sum shasum env uname printenv install tee timeout sleep"
 ).split()
 
 
@@ -195,7 +196,7 @@ class Maquina:
             raise AssertionError(f"curl do teste não é o falso: {alvo}")
 
     def rodar(self, *extras: str, modo: str = "apply", respostas: dict | None = None,
-              tls: str | None = None, rede: bool = False) -> "Execucao":
+              tls: str | None = None, rede: bool = False, gh_timeout: int | None = None) -> "Execucao":
         self.execucoes += 1
         log = self.logs / f"run-{self.execucoes}.jsonl"
         env = {
@@ -203,6 +204,7 @@ class Maquina:
             "FAKE_STATE": str(self.estado_arquivo),
             "FAKE_BIN": str(self.bin),
             "FAKE_AGENTS_SOURCE": str(AGENTES),
+            "FAKE_LIBRARY_MANIFEST": str(RAIZ / "src/hubicg/library/manifest.json"),
             "HOME": str(self.home),
             "SHELL": "/bin/zsh" if self.motor == "mac" else "/bin/bash",
             "HUBICG_STATION_TEST_DESKTOP": self.desktop_mode,
@@ -213,6 +215,8 @@ class Maquina:
         }
         if tls:
             env["HUBICG_STATION_TEST_TLS_ISSUER"] = tls
+        if gh_timeout is not None:
+            env["HUBICG_STATION_TEST_GH_TIMEOUT"] = str(gh_timeout)
         args: list[str] = []
         arquivo_respostas = None
         if respostas is not None:
@@ -599,11 +603,58 @@ class CenariosDoMotor:
         self.assertFalse((m.config / "agents").exists())
         # The GUI uses this selected clone's default path, with no AgentsSource override.
         shutil.copytree(AGENTES, m.repo / ".hubicg" / "exports" / "station-agents")
+        library = m.repo / "src/hubicg/library"
+        library.mkdir(parents=True)
+        shutil.copyfile(RAIZ / "src/hubicg/library/manifest.json", library / "manifest.json")
         delivered = m.rodar(*args)
         self.assertEqual(delivered.codigo, 0, delivered)
         self.assertEqual(delivered.status()["agents"], "installed")
         self.assertEqual(sorted(path.name for path in (m.config / "agents").glob("*.md")),
                          sorted(path.name for path in AGENTES.glob("*.md")))
+
+    def test_biblioteca_nova_exige_export_novo_sem_alterar_antigo(self) -> None:
+        m = self.maquina_pronta()
+        package = m.repo / "src/hubicg"
+        shutil.copytree(RAIZ / "src/hubicg", package, ignore=shutil.ignore_patterns("__pycache__"))
+        source = m.repo / ".hubicg/exports/station-agents"
+        shutil.copytree(AGENTES, source)
+        args = ("-Only" if self.motor == "ps1" else "--only", "agents")
+        self.assertEqual(m.rodar(*args).codigo, 0)
+        before = fotografia(m.config)
+        old_export = fotografia(source)
+        manifest_file = package / "library/manifest.json"
+        manifest = json.loads(manifest_file.read_text(encoding="utf-8"))
+        entry = manifest["roles"][0]
+        role_file = package / "library" / entry["path"]
+        role = json.loads(role_file.read_text(encoding="utf-8"))
+        role["lead"] = role.get("lead", "") + "\nSYNTHETIC LIBRARY UPDATE"
+        role_file.write_text(json.dumps(role, ensure_ascii=False) + "\n", encoding="utf-8")
+        entry["sha256"] = hashlib.sha256(role_file.read_bytes()).hexdigest()
+        manifest["version"] = "synthetic-next"
+        manifest_file.write_text(json.dumps(manifest) + "\n", encoding="utf-8")
+        stale = m.rodar(*args)
+        self.assertEqual(stale.codigo, 3, stale)
+        self.assertEqual(stale.status()["agents"], "action_required")
+        self.assertEqual(stale.acoes()[0]["data"]["id"], "agents-export-stale")
+        self.assertEqual(fotografia(m.config), before)
+        self.assertEqual(fotografia(source), old_export)
+        generator = m.repo / "scripts/build_station_agents.py"
+        generator.parent.mkdir()
+        shutil.copyfile(RAIZ / "scripts/build_station_agents.py", generator)
+        fresh = source.with_name("station-agents-next")
+        generated = subprocess.run([sys.executable, str(generator), "--output", str(fresh)],
+                                   cwd=m.repo, capture_output=True, text=True, timeout=30)
+        self.assertEqual(generated.returncode, 0, generated.stdout + generated.stderr)
+        previous = source.with_name("station-agents-previous")
+        assert source.resolve().is_relative_to(m.raiz.resolve())
+        assert previous.resolve().is_relative_to(m.raiz.resolve())
+        source.rename(previous)
+        fresh.rename(source)
+        updated = m.rodar(*args)
+        self.assertEqual(updated.codigo, 0, updated)
+        self.assertEqual(updated.status()["agents"], "updated")
+        self.assertIn("SYNTHETIC LIBRARY UPDATE", (m.config / "agents" / f"{role['id']}.md").read_text(encoding="utf-8"))
+        self.assertEqual(fotografia(previous), old_export)
 
     def test_agente_que_nao_e_do_instalador_nunca_e_sobrescrito(self) -> None:
         m = self.maquina_pronta()
@@ -897,6 +948,53 @@ class MotorLinuxTests(CenariosDoMotor, unittest.TestCase):
     motor = "sh"
     desktop_suportado = False
 
+    def test_apt_divergente_e_preservado_com_pedido_de_acao(self) -> None:
+        m = self.maquina_vazia()
+        key = m.raiz / "sysroot/etc/apt/keyrings/githubcli-archive-keyring.gpg"
+        sources = m.raiz / "sysroot/etc/apt/sources.list.d/github-cli.list"
+        for path, content in ((key, b"administrator key"), (sources, b"administrator options\n")):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(content)
+        before = fotografia(m.raiz / "sysroot")
+        result = m.rodar("--only", "gh")
+        self.assertEqual(result.codigo, 3, result)
+        self.assertEqual(result.status()["gh"], "action_required")
+        self.assertEqual(result.acoes()[0]["data"]["id"], "gh-apt-conflict")
+        self.assertEqual(fotografia(m.raiz / "sysroot"), before)
+        self.assertFalse(any(c["tool"] == "apt-get" and "gh" in c["args"] for c in m.chamadas()))
+
+    def test_apt_compativel_e_reutilizado_sem_reescrever(self) -> None:
+        m = self.maquina_vazia()
+        key = m.raiz / "sysroot/etc/apt/keyrings/githubcli-archive-keyring.gpg"
+        sources = m.raiz / "sysroot/etc/apt/sources.list.d/github-cli.list"
+        key.parent.mkdir(parents=True)
+        sources.parent.mkdir(parents=True)
+        key.write_bytes(b"fake-download")
+        sources.write_text("deb [arch=amd64 signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main\n")
+        before = fotografia(m.raiz / "sysroot")
+        result = m.rodar("--only", "gh")
+        self.assertEqual(result.codigo, 0, result)
+        self.assertEqual(fotografia(m.raiz / "sysroot"), before)
+        self.assertEqual(list(m.config.glob(".hubicg-station-apt-*.json")), [])
+
+    def test_login_gh_segue_pid_apos_eof_com_e_sem_timeout(self) -> None:
+        for without_timeout in (False, True):
+            for should_finish in (False, True):
+                with self.subTest(without_timeout=without_timeout, should_finish=should_finish):
+                    m = self.maquina_pronta()
+                    m.ajustar(gh_auth=False, gh_close_output_delay=2 if should_finish else 30)
+                    m._path()
+                    if without_timeout:
+                        (m.raiz / "sysbin/timeout").unlink(missing_ok=True)
+                    started = time.monotonic()
+                    result = m.rodar("--only", "gh-auth", gh_timeout=6 if should_finish else 2)
+                    self.assertLess(time.monotonic() - started, 20)
+                    self.assertEqual(result.codigo, 0 if should_finish else 1, result)
+                    resolved = [event for event in result.eventos if event["type"] == "action_resolved"]
+                    self.assertEqual(resolved[-1]["status"], "completed" if should_finish else "timeout")
+                    with self.assertRaises(ProcessLookupError):
+                        os.kill(m.ler_estado()["gh_login_pid"], 0)
+
     def test_falha_ao_persistir_path_nao_reporta_configured(self) -> None:
         m = self.maquina_pronta()
         local_bin = m.home / ".local" / "bin"
@@ -983,6 +1081,11 @@ class MotorLinuxTests(CenariosDoMotor, unittest.TestCase):
         lista = m.raiz / "sysroot" / "etc" / "apt" / "sources.list.d" / "github-cli.list"
         self.assertIn("https://cli.github.com/packages stable main", lista.read_text(encoding="utf-8"))
         self.assertIn("signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg", lista.read_text(encoding="utf-8"))
+        receipts = list(m.config.glob(".hubicg-station-apt-*.json"))
+        self.assertEqual(len(receipts), 1)
+        receipt = json.loads(receipts[0].read_text())
+        self.assertTrue(receipt["keyringCreated"] and receipt["listCreated"])
+        self.assertEqual(receipt["listSha256"], hashlib.sha256(lista.read_bytes()).hexdigest())
 
     def test_path_do_claude_so_muda_com_autorizacao(self) -> None:
         m = self.maquina_pronta()

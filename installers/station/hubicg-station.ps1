@@ -66,7 +66,8 @@ $WhatIfPreference = $false
 $Interactive = (-not $NonInteractive) -and [Environment]::UserInteractive -and (-not [Console]::IsInputRedirected)
 $RepoUrl = "https://github.com/$Repository.git"
 $StateFile = Join-Path $ConfigDir '.hubicg-station.json'
-if (-not $AgentsSource) { $AgentsSource = Join-Path $RepoDir '.hubicg\exports\station-agents' }
+$DefaultAgentsSource = -not $AgentsSource
+if ($DefaultAgentsSource) { $AgentsSource = Join-Path $RepoDir '.hubicg\exports\station-agents' }
 $RunId = (Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ') + '-' + ([Guid]::NewGuid().ToString('N').Substring(0, 4))
 
 $AllSteps = @(
@@ -943,6 +944,23 @@ function Step-Agents {
         Request-Action -Step 'agents' -Id 'agents-export' -Kind 'external' -Message "Gere os agentes publicos: python scripts/build_station_agents.py (no clone $RepoDir); ou informe -AgentsSource com um export validado."
         return (New-Result 'action_required' "export publico de agentes ausente: $AgentsSource")
     }
+    if ($DefaultAgentsSource) {
+        $current = $false
+        try {
+            $libraryFile = Join-Path $RepoDir 'src\hubicg\library\manifest.json'
+            $receiptFile = Join-Path $AgentsSource '.hubicg-station-export.json'
+            $receipt = [IO.File]::ReadAllText($receiptFile, $Utf8) | ConvertFrom-Json -ErrorAction Stop
+            $current = ($receipt.schema -is [string] -and
+                $receipt.schema -eq 'hubicg.station.agents-export/1' -and
+                $receipt.libraryManifestSha256 -is [string] -and
+                $receipt.libraryManifestSha256 -eq (Get-Sha256 ([IO.File]::ReadAllBytes($libraryFile))))
+        } catch { $current = $false }
+        if (-not $current) {
+            if ($Mode -ne 'apply') { return (New-Result $(if ($Mode -eq 'check') { 'missing' } else { 'would_install' }) 'export ausente, sem recibo ou desatualizado para a biblioteca do clone') }
+            Request-Action -Step 'agents' -Id 'agents-export-stale' -Kind 'external' -Message "O export nao corresponde a biblioteca de $RepoDir. Preserve a pasta antiga com outro nome e gere um export novo no caminho padrao com Python 3.11+: python scripts/build_station_agents.py. Artefato externo explicito usa -AgentsSource e origem propria."
+            return (New-Result 'action_required' 'export desatualizado ou sem origem verificavel no clone; nenhum agente foi alterado')
+        }
+    }
     $target = Join-Path $ConfigDir 'agents'
     $state = Read-State
     $counts = [ordered]@{ installed = 0; updated = 0; already = 0; removed = 0; conflict = 0 }
@@ -1014,7 +1032,7 @@ function Step-Agents {
     foreach ($name in $conflicts) {
         Write-Log 'agents' 'warn' "$name ja existe em $target, nao foi instalado por este instalador (ou foi alterado depois) e foi mantido como estava."
     }
-    $data = [ordered]@{ target = $target; source = $AgentsSource; total = $sources.Count; counts = $counts; conflicts = @($conflicts) }
+    $data = [ordered]@{ target = $target; source = $AgentsSource; sourceMode = $(if ($DefaultAgentsSource) { 'clone-library' } else { 'external' }); total = $sources.Count; counts = $counts; conflicts = @($conflicts) }
     $summary = "$($sources.Count) agentes: $($counts.installed) novos, $($counts.updated) atualizados, $($counts.already) iguais, $($counts.removed) removidos, $($counts.conflict) conflitos mantidos"
     if (($counts.installed + $counts.updated + $counts.removed) -eq 0) {
         # Adopting identical files into a new manifest is still a change on disk.

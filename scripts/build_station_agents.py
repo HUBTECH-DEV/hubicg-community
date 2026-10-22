@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 import sys
 from pathlib import Path
@@ -16,9 +17,9 @@ from hubicg.library import load_packaged
 from hubicg.role_schema import FOUNDATION_LISTS
 
 
-def render_all() -> dict[str, str]:
+def render_all(*, library=None) -> dict[str, str]:
     """Compose canonical roles/foundations; use the station body integrity marker."""
-    _, _, roles, foundations, errors = load_packaged()
+    _, _, roles, foundations, errors = library if library is not None else load_packaged()
     if errors:
         raise ValueError("; ".join(errors))
     known = {item["id"]: item for item in foundations}
@@ -39,9 +40,15 @@ def render_all() -> dict[str, str]:
 
 def export(destination: Path) -> int:
     """Refuse existing differing files; never delete or replace user content."""
-    rendered = render_all()
+    library = load_packaged()
+    rendered = render_all(library=library)
+    metadata = json.dumps({"schema": "hubicg.station.agents-export/1",
+                           "libraryManifestSha256": library[1]}, sort_keys=True) + "\n"
+    receipt = destination / ".hubicg-station-export.json"
     if destination.is_symlink():
         raise ValueError(f"refusing symbolic link: {destination}")
+    if receipt.is_symlink() or (receipt.exists() and receipt.read_bytes() != metadata.encode("utf-8")):
+        raise ValueError("existing export belongs to another library; preserve it and choose an empty export directory")
     for name, text in rendered.items():
         path = destination / name
         if path.is_symlink() or (path.exists() and path.read_bytes() != text.encode("utf-8")):
@@ -55,6 +62,9 @@ def export(destination: Path) -> int:
         if not path.exists():
             with path.open("x", encoding="utf-8", newline="\n") as stream:
                 stream.write(text)
+    if not receipt.exists():
+        with receipt.open("x", encoding="utf-8", newline="\n") as stream:
+            stream.write(metadata)
     return len(rendered)
 
 

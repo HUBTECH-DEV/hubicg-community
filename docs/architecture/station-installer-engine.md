@@ -66,6 +66,13 @@ Community (no Linux, `python3`). O export valida o manifest público, reutiliza
 o adaptador Claude Code e expande as foundations das roles. A saída padrão é
 `.hubicg/exports/station-agents/`; `--output` permite um diretório novo.
 O gerador não substitui arquivos divergentes nem elimina arquivos adicionais.
+O recibo `.hubicg-station-export.json` fixa o SHA-256 do manifest da biblioteca.
+No caminho padrão, os motores comparam esse recibo com o manifest do clone
+selecionado, inclusive após atualização do clone. Export antigo ou sem recibo
+gera `agents-export-stale` / `action_required`, sem alterar agentes instalados.
+Preserve a pasta antiga com outro nome e gere um export novo no caminho padrão.
+Um `AgentsSource` explícito é um artefato externo: valida-se seu corpo, sem
+afirmar atualidade em relação à biblioteca do clone (`sourceMode: external`).
 Se o export faltar, a aplicação emite `agents-export`, kind `external`, e termina
 a etapa com `action_required`. Gere o artefato e repita a execução. Não há
 dependência de configuração ou biblioteca privada.
@@ -319,6 +326,16 @@ de novo", que roda o motor outra vez.
 | `desktop-login-confirm` | `claude-desktop-auth` | `confirm` | `desktop.loginConfirmed` |
 | `package-manager-missing` | `git`, `gh` | `external` | instalar o gerenciador indicado |
 | `privilege-required` | `git`, `gh` | `external` | rodar como usuário com `sudo` |
+| `agents-export` | `agents` | `external` | gerar/entregar o export público ao clone selecionado |
+| `agents-export-stale` | `agents` | `external` | preservar o export antigo e gerar um novo correspondente à biblioteca do clone |
+| `gh-apt-conflict` | `gh` | `external` | reconciliar configuração APT divergente, mantida sem sobrescrita |
+
+No APT, keyring e lista compatíveis são reutilizados sem regravação. Arquivos
+divergentes ou symlinks geram ação externa; mesmo arquivos criados anteriormente
+pelo motor não são atualizados automaticamente. Arquivos novos usam criação
+sem sobrescrita e têm hashes/propriedade registrados em um recibo local
+`.hubicg-station-apt-<runId>.json` no diretório de configuração. Rotação de
+chaves exige reconciliação explícita, preservando configurações administradas.
 
 Pedido novo pode entrar no catálogo sem mudar a versão do contrato. A interface que não conhece um `id` usa o
 tratamento genérico do `kind`.

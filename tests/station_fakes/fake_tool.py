@@ -97,6 +97,9 @@ def fake_git(args: list[str], state: dict) -> int:
         (target / ".git").mkdir(parents=True)
         (target / ".git" / "fake-remote").write_text(url, encoding="utf-8")
         shutil.copytree(os.environ["FAKE_AGENTS_SOURCE"], target / ".hubicg" / "exports" / "station-agents")
+        library = target / "src" / "hubicg" / "library"
+        library.mkdir(parents=True)
+        shutil.copyfile(os.environ["FAKE_LIBRARY_MANIFEST"], library / "manifest.json")
         state["local_head"] = state.get("remote_head", "a" * 40)
         save(state)
         return 0
@@ -140,10 +143,21 @@ def fake_gh(args: list[str], state: dict) -> int:
         # not wait for Enter; the login completes when the browser approves.
         err("! First copy your one-time code: ABCD-1234")
         err("Open this URL to continue in your web browser: https://github.com/login/device")
+        if state.get("gh_close_output_delay"):
+            sys.stdout.flush()
+            sys.stderr.flush()
+            state["gh_login_pid"] = os.getpid()
+            save(state)
+            os.close(1)
+            os.close(2)
+            sys.stdout = open(os.devnull, "w")
+            sys.stderr = open(os.devnull, "w")
+            time.sleep(state["gh_close_output_delay"])
         if state.get("gh_login_succeeds", True):
             state["gh_auth"] = True
             save(state)
-            err("✓ Authentication complete.")
+            if not state.get("gh_close_output_delay"):
+                err("✓ Authentication complete.")
             return 0
         return 1
     if args[:2] == ["auth", "setup-git"]:

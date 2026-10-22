@@ -18,6 +18,11 @@ and supply it through `-AgentsSource` / `--agents-source`. The installer checks
 each body's SHA-256 marker before writing agents. A missing export becomes
 `action_required`, never an assertion that agents were installed. Hash markers
 detect edits; they do not authenticate an untrusted external artifact.
+The export receipt pins the public library manifest. The default path is checked
+against the selected clone, including after a pull. A stale or missing receipt
+requires action: preserve the old export directory under another name, then
+generate a fresh export at the default path. An explicit external source uses
+its own provenance and does not assert freshness against the selected clone.
 
 If the installer's selected clone directory differs from this checkout,
 pass this export's absolute path with `-AgentsSource` / `--agents-source`, or

@@ -85,7 +85,8 @@ INTERACTIVE=0
 if [ "$NON_INTERACTIVE" -eq 0 ] && [ -t 0 ] && [ -t 1 -o -t 2 ]; then INTERACTIVE=1; fi
 REPO_URL="https://github.com/${REPOSITORY}.git"
 STATE_FILE="${CONFIG_DIR}/.hubicg-station.json"
-[ -n "$AGENTS_SOURCE" ] || AGENTS_SOURCE="${REPO_DIR}/.hubicg/exports/station-agents"
+AGENTS_DEFAULT=0
+if [ -z "$AGENTS_SOURCE" ]; then AGENTS_DEFAULT=1; AGENTS_SOURCE="${REPO_DIR}/.hubicg/exports/station-agents"; fi
 RUN_ID="$(date -u '+%Y%m%dT%H%M%SZ')-$(printf '%04x' $((RANDOM % 65536)))"
 SEQ=0
 
@@ -575,14 +576,35 @@ step_git_identity() {
 install_gh_apt_repository() {
   local keyring="${SYSROOT}/etc/apt/keyrings/githubcli-archive-keyring.gpg"
   local list="${SYSROOT}/etc/apt/sources.list.d/github-cli.list"
-  local tmp
-  tmp=$(mktemp) || return 1
-  download https://cli.github.com/packages/githubcli-archive-keyring.gpg "$tmp" || { rm -f "$tmp"; return 1; }
-  as_root mkdir -p -m 755 "$(dirname -- "$keyring")" "$(dirname -- "$list")" || { rm -f "$tmp"; return 1; }
-  as_root install -m 0644 "$tmp" "$keyring" || { rm -f "$tmp"; return 1; }
-  rm -f "$tmp"
+  local work file expected created_key=false created_list=false receipt
+  work=$(mktemp -d) || return 1
+  download https://cli.github.com/packages/githubcli-archive-keyring.gpg "$work/key" || { rm -rf -- "$work"; return 1; }
   printf 'deb [arch=%s signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main\n' \
-    "$(dpkg --print-architecture)" | as_root tee "$list" >/dev/null || return 1
+    "$(dpkg --print-architecture)" >"$work/list"
+  # Never replace existing files, even files a previous run created. Key rotation
+  # or administrator customizations require explicit manual reconciliation.
+  for file in "$keyring" "$list"; do
+    expected="$work/key"; [ "$file" != "$list" ] || expected="$work/list"
+    if [ -L "$file" ] || { [ -e "$file" ] && { [ ! -f "$file" ] || ! cmp -s -- "$expected" "$file"; }; }; then
+      rm -rf -- "$work"
+      request_action gh gh-apt-conflict external "Configuracao APT existente divergente ou redirecionada em $file. Nada foi substituido. Preserve-a e reconcilie manualmente com o repositorio oficial do GitHub CLI."
+      return 3
+    fi
+  done
+  as_root mkdir -p -m 755 "$(dirname -- "$keyring")" "$(dirname -- "$list")" || { rm -rf -- "$work"; return 1; }
+  for file in "$keyring" "$list"; do
+    [ ! -e "$file" ] || continue
+    expected="$work/key"; [ "$file" != "$list" ] || expected="$work/list"
+    # noclobber also protects against a file appearing after the checks above.
+    as_root sh -c 'umask 022; set -C; cat -- "$1" >"$2"' sh "$expected" "$file" || { rm -rf -- "$work"; return 1; }
+    if [ "$file" = "$keyring" ]; then created_key=true; else created_list=true; fi
+  done
+  if [ "$created_key" = true ] || [ "$created_list" = true ]; then
+    receipt="$CONFIG_DIR/.hubicg-station-apt-$RUN_ID.json"
+    mkdir -p -- "$CONFIG_DIR" || { rm -rf -- "$work"; return 1; }
+    (umask 077; set -C; jobj schema '"hubicg.station.apt/1"' keyring "$(json_str "$keyring")" keyringCreated "$created_key" keyringSha256 "$(json_str "$(sha256_of "$work/key")")" list "$(json_str "$list")" listCreated "$created_list" listSha256 "$(json_str "$(sha256_of "$work/list")")" >"$receipt") || { rm -rf -- "$work"; return 1; }
+  fi
+  rm -rf -- "$work"
   APT_UPDATED=0
 }
 
@@ -610,7 +632,10 @@ step_gh() {
     can_be_root || { need_privilege gh; return; }
     ensure_curl || { result failed "curl ausente e nao foi possivel instala-lo"; return; }
     emit progress gh "" "Configurando o repositorio oficial do GitHub CLI" "{}"
-    install_gh_apt_repository || { result failed "nao foi possivel configurar o repositorio apt do GitHub CLI" "$(jobj output "$(json_str "$(limit_output "$TOOL_OUT")")")"; return; }
+    install_gh_apt_repository
+    local apt_code=$?
+    if [ "$apt_code" -eq 3 ]; then result action_required "configuracao APT existente preservada; reconciliacao pendente"; return; fi
+    if [ "$apt_code" -ne 0 ]; then result failed "nao foi possivel configurar o repositorio apt do GitHub CLI" "$(jobj output "$(json_str "$(limit_output "$TOOL_OUT")")")"; return; fi
   fi
   install_package_step gh gh gh
 }
@@ -622,9 +647,28 @@ gh_device_login() {
   # code and the URL; both go to the interface as a browser_code action while
   # the engine waits. Without a terminal gh does not wait for Enter.
   local timeout_s=900 code="" url="https://github.com/login/device" announced=0 line
-  local runner="env"
-  if has timeout; then runner="timeout"; fi
-  while IFS= read -r line; do
+  local work login_pid started=$SECONDS login_code=0 timed_out=0
+  if [ "${HUBICG_STATION_TEST_ISOLATED:-}" = 1 ]; then
+    case "${HUBICG_STATION_TEST_GH_TIMEOUT:-}" in ''|*[!0-9]*|0) ;; *) timeout_s=$HUBICG_STATION_TEST_GH_TIMEOUT ;; esac
+  fi
+  work=$(mktemp -d) || return 1
+  mkfifo "$work/output" || { rm -rf -- "$work"; return 1; }
+  # A FIFO keeps device codes in memory. Keep its reader open and follow the
+  # actual child PID: EOF on the child's output is not process completion.
+  exec 3<>"$work/output"
+  gh auth login --hostname github.com --git-protocol https --web </dev/null >"$work/output" 2>&1 3>&- &
+  login_pid=$!
+  trap 'kill -KILL "$login_pid" 2>/dev/null; wait "$login_pid" 2>/dev/null; exec 3>&-; rm -rf -- "$work"; exit 130' INT TERM HUP
+  while true; do
+    if [ $((SECONDS - started)) -ge "$timeout_s" ]; then
+      timed_out=1
+      kill -KILL "$login_pid" 2>/dev/null
+      break
+    fi
+    if ! IFS= read -r -t 1 line <&3; then
+      kill -0 "$login_pid" 2>/dev/null && continue
+      break
+    fi
     case "$line" in
       *"one-time code:"*) code=$(printf '%s' "$line" | grep -Eo '[A-Z0-9]{4}-[A-Z0-9]{4}' | head -n 1) ;;
     esac
@@ -640,8 +684,16 @@ gh_device_login() {
           ;;
       esac
     fi
-  done < <(if [ "$runner" = "timeout" ]; then timeout "$timeout_s" gh auth login --hostname github.com --git-protocol https --web; elif [ "$OS_NAME" = "Darwin" ]; then mac_deadline "$timeout_s" gh auth login --hostname github.com --git-protocol https --web; else gh auth login --hostname github.com --git-protocol https --web; fi </dev/null 2>&1)
-  if gh_logged_in; then
+  done
+  wait "$login_pid" 2>/dev/null || login_code=$?
+  exec 3>&-
+  rm -rf -- "$work"
+  trap - INT TERM HUP
+  if [ "$timed_out" -eq 1 ]; then
+    emit action_resolved gh-auth timeout "O codigo expirou sem login; processo encerrado." '{"id":"gh-login"}'
+    return 1
+  fi
+  if [ "$login_code" -eq 0 ] && gh_logged_in; then
     [ $announced -eq 0 ] || emit action_resolved gh-auth completed "Login no GitHub concluido." '{"id":"gh-login"}'
     return 0
   fi
@@ -660,7 +712,7 @@ step_gh_auth() {
       log_msg gh-auth info "Abrindo o login oficial do gh. Siga as instrucoes; o instalador nao ve o token."
       gh auth login --hostname github.com --git-protocol https --web
     else
-      gh_device_login
+      gh_device_login || { result failed "o login do gh nao foi concluido; rode o instalador de novo para recomecar"; return; }
     fi
     gh_logged_in || { result failed "o login do gh nao foi concluido; rode o instalador de novo para recomecar"; return; }
     changed="login"
@@ -1050,6 +1102,23 @@ step_agents() {
     esac
     return
   fi
+  if [ "$AGENTS_DEFAULT" -eq 1 ]; then
+    local library_file="$REPO_DIR/src/hubicg/library/manifest.json"
+    local receipt_file="$AGENTS_SOURCE/.hubicg-station-export.json" recorded_library="" receipt_schema=""
+    if [ -f "$receipt_file" ]; then
+      recorded_library=$(LC_ALL=C awk -v key=/libraryManifestSha256 -v required_type=string -f "$JSON_READER" "$receipt_file" 2>/dev/null)
+      receipt_schema=$(LC_ALL=C awk -v key=/schema -v required_type=string -f "$JSON_READER" "$receipt_file" 2>/dev/null)
+    fi
+    if [ ! -f "$library_file" ] || [ "$receipt_schema" != "hubicg.station.agents-export/1" ] || [ "$recorded_library" != "$(sha256_of "$library_file" 2>/dev/null)" ]; then
+      case "$MODE" in
+        check) result missing "export ausente, sem recibo ou desatualizado para a biblioteca do clone" ;;
+        plan) result would_install "geraria um export correspondente a biblioteca do clone" ;;
+        *) request_action agents agents-export-stale external "O export nao corresponde a biblioteca de $REPO_DIR. Preserve a pasta antiga com outro nome e gere um export novo no caminho padrao com Python 3.11+: python3 scripts/build_station_agents.py. Artefato externo explicito usa --agents-source e origem propria."
+           result action_required "export desatualizado ou sem origem verificavel no clone; nenhum agente foi alterado" ;;
+      esac
+      return
+    fi
+  fi
   local target="${CONFIG_DIR}/agents" work file name hash current recorded
   local installed=0 updated=0 already=0 removed=0 conflict=0 total=0 conflicts_json=""
   work=$(mktemp -d) || { result failed "nao foi possivel criar diretorio temporario"; return; }
@@ -1139,7 +1208,9 @@ step_agents() {
   done
   local counts data summary
   counts=$(jobj installed "$installed" updated "$updated" already "$already" removed "$removed" conflict "$conflict")
-  data=$(jobj target "$(json_str "$target")" source "$(json_str "$AGENTS_SOURCE")" total "$total" counts "$counts" conflicts "[${conflicts_json}]")
+  local source_mode=external
+  [ "$AGENTS_DEFAULT" -eq 0 ] || source_mode=clone-library
+  data=$(jobj target "$(json_str "$target")" source "$(json_str "$AGENTS_SOURCE")" sourceMode "$(json_str "$source_mode")" total "$total" counts "$counts" conflicts "[${conflicts_json}]")
   summary="$total agentes: $installed novos, $updated atualizados, $already iguais, $removed removidos, $conflict conflitos mantidos"
   if [ $((installed + updated + removed)) -eq 0 ]; then
     # Adopting identical files into a new manifest is still a change on disk.
