@@ -30,7 +30,6 @@ FOUNDATION_FIELDS = {
     "practices", "theories", "lawsAndModels", "references", "guardrails",
 }
 FOUNDATION_LISTS = ("principles", "practices", "theories", "lawsAndModels", "references", "guardrails")
-TEXT_LIMIT = 100_000
 
 
 def validate_role(data: Any) -> list[str]:
@@ -141,8 +140,6 @@ def validate_role_v2(data: dict[str, Any]) -> list[str]:
             ):
                 errors.append("blocks entries need a heading and a body")
                 break
-    if not errors and len(role_text(data)) > TEXT_LIMIT:
-        errors.append(f"role text must not exceed {TEXT_LIMIT} characters")
     return errors
 
 

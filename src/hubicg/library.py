@@ -45,10 +45,18 @@ def machine_home(override: str | None = None) -> Path:
 
 
 def database_path(home: Path) -> Path:
+    """Return the resolved database path, refusing a redirected target.
+
+    Policy for links: the machine directory itself and ``library.db`` must not
+    be symbolic links, because they are what ``install`` writes. Ancestors are
+    resolved instead of refused, since operating systems link them on purpose
+    (``/var`` on macOS, for example), and the resolved path is what commands
+    report, so the real write location is always visible.
+    """
     for candidate in (home, home / DATABASE_NAME):
         if candidate.is_symlink():
             raise ValueError(f"refusing symbolic link: {candidate}")
-    return home / DATABASE_NAME
+    return home.resolve() / DATABASE_NAME
 
 
 def _packaged() -> Any:

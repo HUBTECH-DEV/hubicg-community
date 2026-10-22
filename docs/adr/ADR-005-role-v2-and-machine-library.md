@@ -88,9 +88,13 @@ origem `official` sem implementá-la.
 
 ### Custos e riscos
 
-- `library install` é a primeira escrita fora de `.hubicg/`. Ela é restrita ao
-  diretório da máquina, recusa link simbólico e está documentada no contrato
-  do CLI;
+- `library install` é a primeira escrita fora de `.hubicg/` e está documentada
+  no contrato do CLI. Ela é restrita ao diretório da máquina, com uma política
+  explícita para links:
+  - o diretório da máquina e o `library.db` não podem ser links simbólicos;
+  - os diretórios ancestrais são resolvidos, e não recusados, porque o sistema
+    operacional os liga de propósito (`/var` no macOS, por exemplo);
+  - o caminho resolvido é o que os comandos informam;
 - um banco por máquina é compartilhado entre projetos, então a atualização da
   biblioteca afeta todos de uma vez. A instalação é explícita, nunca implícita;
 - as 19 roles `role-v1` de `.hubicg/roles/` continuam sendo a origem que o

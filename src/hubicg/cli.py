@@ -245,9 +245,12 @@ def roles_search(ctx: Context, args: argparse.Namespace) -> None:
     payload: dict[str, Any] = {"query": args.query, "engine": engine, "roles": roles}
     library = installed_library(ctx)
     if library is not None:
-        records, payload["libraryEngine"] = library.search(args.query, args.limit)
-        found = {role["id"] for role in roles}
-        roles.extend(role_payload(record) for record in records if record.role_id not in found)
+        # Every local ID shadows the official role, even when the local role
+        # does not match this query: search must not announce a role that
+        # selection would never use.
+        shadowed = {str(item.get("id")) for item in local_role_payloads(ctx)}
+        records, payload["libraryEngine"] = library.search(args.query, args.limit + len(shadowed))
+        roles.extend(role_payload(record) for record in records if record.role_id not in shadowed)
         del roles[args.limit:]
     human = "\n".join(f"{role['id']}\t{role['name']}\t{role['source']}" for role in roles) or "no roles"
     emit(ctx, payload, human)

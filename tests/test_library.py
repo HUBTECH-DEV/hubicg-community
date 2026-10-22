@@ -73,6 +73,13 @@ def test_role_v2_contract_is_enforced() -> None:
     assert validate_role({**v2_role(), "schemaVersion": "3.0"})
 
 
+def test_validator_accepts_every_role_the_public_schema_accepts() -> None:
+    # The schema bounds each block, not their sum; the validator must not add
+    # an undeclared aggregate limit and refuse a role the contract allows.
+    large = v2_role(blocks=[{"heading": f"Part {index}", "body": "x" * 20_000} for index in range(6)])
+    assert validate_role(large) == []
+
+
 def test_role_v1_is_still_accepted() -> None:
     assert validate_role({"schemaVersion": "1.0", "id": "one", "name": "One", "instructions": "x"}) == []
 
@@ -161,6 +168,39 @@ def test_selection_uses_the_machine_library_with_project_precedence(tmp_path: Pa
     }), encoding="utf-8")
     local = json.loads(run(root, "--home", str(home), "--json", "roles", "select", "scrum").stdout)
     assert local["selected"][0]["source"] == "project"
+
+
+def test_search_never_announces_an_official_role_the_project_shadows(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    root = project(tmp_path)
+    assert run(root, "--home", str(home), "library", "install").returncode == 0
+    before = json.loads(run(root, "--home", str(home), "--json", "roles", "search", "retrospectivas").stdout)
+    assert "principal-scrum-master" in {role["id"] for role in before["roles"]}
+
+    (root / ".hubicg" / "roles" / "principal-scrum-master.json").write_text(json.dumps({
+        "schemaVersion": "1.0", "id": "principal-scrum-master", "name": "Local", "instructions": "unrelated",
+    }), encoding="utf-8")
+    after = json.loads(run(root, "--home", str(home), "--json", "roles", "search", "retrospectivas").stdout)
+    assert "principal-scrum-master" not in {role["id"] for role in after["roles"]}
+
+
+def test_machine_directory_link_is_refused(tmp_path: Path) -> None:
+    target = tmp_path / "real"
+    target.mkdir()
+    link = tmp_path / "link"
+    try:
+        link.symlink_to(target, target_is_directory=True)
+    except OSError:
+        pytest.skip("creating symbolic links needs a privilege this environment lacks")
+    result = run(project(tmp_path / "p"), "--home", str(link), "library", "install")
+    assert result.returncode == 1
+    assert not (target / "library.db").exists()
+
+
+def test_reported_database_path_is_resolved(tmp_path: Path) -> None:
+    home = tmp_path / "a" / ".." / "home"
+    installed = json.loads(run(project(tmp_path), "--home", str(home), "--json", "library", "install").stdout)
+    assert Path(installed["database"]) == (tmp_path / "home").resolve() / "library.db"
 
 
 def test_selection_without_library_is_unchanged(tmp_path: Path) -> None:

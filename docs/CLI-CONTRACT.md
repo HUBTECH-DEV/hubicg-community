@@ -69,7 +69,9 @@ overwrites a role another source owns under the same ID.
 | Linux and others | `$XDG_DATA_HOME/hubicg`, else `~/.local/share/hubicg` |
 
 `install` is the only command that writes outside `.hubicg/`, and only to that
-directory. Once installed, `roles select` and `roles search` include the
+directory. The machine directory and `library.db` must not be symbolic links;
+ancestor directories are resolved, and commands report the resolved database
+path, so the real write location is always visible. Once installed, `roles select` and `roles search` include the
 official roles, with `custom` and `project` roles taking precedence over an
 official role with the same ID. Selection never creates the machine database.
 `show` returns a role with the foundations it composes, in declared order.
