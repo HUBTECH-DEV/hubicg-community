@@ -8,6 +8,7 @@ import os
 import re
 import sqlite3
 import tempfile
+from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -88,7 +89,9 @@ class SQLiteRoleRepository:
         return connection
 
     def initialize(self) -> bool:
-        with self.connect() as connection:
+        # closing() matters: sqlite3's own context manager commits but leaves
+        # the connection open, which blocks a later journal-mode change.
+        with closing(self.connect()) as connection, connection:
             connection.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS schema_metadata (
@@ -142,10 +145,14 @@ class SQLiteRoleRepository:
             ).fetchall()
         return [RoleRecord(**dict(row)) for row in rows]
 
+    def reader(self) -> sqlite3.Connection:
+        """Connection for queries; subclasses may make it read-only."""
+        return self.connect()
+
     def payloads(self) -> list[dict[str, Any]]:
         if not self.path.is_file():
             self.initialize()
-        with self.connect() as connection:
+        with closing(self.reader()) as connection:
             rows = connection.execute(
                 "SELECT payload_json, source, content_hash FROM roles ORDER BY name, role_id"
             ).fetchall()
@@ -239,7 +246,7 @@ class SQLiteRoleRepository:
         if not tokens:
             return [], "fallback"
         columns = "role_id, name, instructions, source, locale, version, content_hash"
-        with self.connect() as connection:
+        with closing(self.reader()) as connection:
             try:
                 expression = " OR ".join('"' + token.replace('"', '""') + '"' for token in tokens)
                 rows = connection.execute(

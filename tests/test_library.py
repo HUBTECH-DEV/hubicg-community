@@ -202,11 +202,23 @@ def broken_copy(tmp_path: Path, breakage: str) -> Path:
     elif breakage == "unreadable-manifest":
         manifest_path.write_bytes(b"\xff")
         return copy
+    elif breakage == "null-counts":
+        manifest["counts"] = None
+    elif breakage in ("null-foundations", "object-foundations"):
+        entry = manifest["roles"][0]
+        role = json.loads((copy / entry["path"]).read_text(encoding="utf-8"))
+        role["foundations"] = None if breakage == "null-foundations" else [{"id": "x"}]
+        payload = json.dumps(role).encode("utf-8")
+        (copy / entry["path"]).write_bytes(payload)
+        entry["sha256"] = hashlib.sha256(payload).hexdigest()
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     return copy
 
 
-@pytest.mark.parametrize("breakage", ["missing-file", "entry-without-path", "invalid-json", "unreadable-manifest"])
+@pytest.mark.parametrize("breakage", [
+    "missing-file", "entry-without-path", "invalid-json", "unreadable-manifest",
+    "null-counts", "null-foundations", "object-foundations",
+])
 def test_broken_library_is_an_integrity_error_not_a_crash(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], breakage: str,
 ) -> None:
@@ -239,6 +251,24 @@ def test_install_is_idempotent_and_links_foundations_through_json(tmp_path: Path
 
     status = json.loads(run(tmp_path, "--home", str(home), "--json", "library", "status").stdout)
     assert status["current"] is True and status["installed"]["foundations"] == 17
+
+
+def test_queries_never_write_to_the_machine_directory(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    root = project(tmp_path)
+    assert run(root, "--home", str(home), "library", "install").returncode == 0
+
+    def snapshot() -> dict[str, tuple[int, int]]:
+        return {path.name: (path.stat().st_size, path.stat().st_mtime_ns) for path in home.iterdir()}
+
+    before = snapshot()
+    assert set(before) == {"library.db"}, "install must leave a single database file"
+    for command in (
+        ("library", "status"), ("library", "show", "principal-tech-lead"),
+        ("roles", "select", "scrum"), ("roles", "search", "scrum"),
+    ):
+        assert run(root, "--home", str(home), *command).returncode == 0, command
+    assert snapshot() == before
 
 
 def test_show_resolves_foundations_in_declared_order(tmp_path: Path) -> None:

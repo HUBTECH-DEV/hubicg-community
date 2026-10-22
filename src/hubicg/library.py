@@ -81,9 +81,12 @@ def load_packaged() -> tuple[dict[str, Any], str, list[dict[str, Any]], list[dic
     errors: list[str] = []
     loaded: dict[str, list[dict[str, Any]]] = {"roles": [], "foundations": []}
     validators = {"roles": validate_role, "foundations": validate_foundation}
+    counts = manifest.get("counts")
+    if not isinstance(counts, dict):
+        return manifest, "", [], [], ["manifest.json: counts must be an object"]
     for kind in ("foundations", "roles"):
         entries = manifest.get(kind, [])
-        if not isinstance(entries, list) or manifest.get("counts", {}).get(kind) != len(entries):
+        if not isinstance(entries, list) or counts.get(kind) != len(entries):
             errors.append(f"{kind}: manifest count does not match its entries")
             continue
         for entry in entries:
@@ -103,8 +106,13 @@ def load_packaged() -> tuple[dict[str, Any], str, list[dict[str, Any]], list[dic
             except (UnicodeDecodeError, json.JSONDecodeError) as error:
                 errors.append(f"{entry['path']}: invalid JSON: {error}")
                 continue
-            errors += [f"{entry['path']}: {error}" for error in validators[kind](data)]
-            if not isinstance(data, dict) or data.get("id") != entry["id"]:
+            invalid = [f"{entry['path']}: {error}" for error in validators[kind](data)]
+            if invalid:
+                # An invalid document never reaches the composition check,
+                # which assumes the shape the schema guarantees.
+                errors += invalid
+                continue
+            if data.get("id") != entry["id"]:
                 errors.append(f"{entry['path']}: id does not match the manifest")
                 continue
             loaded[kind].append(data)
@@ -123,7 +131,17 @@ class LibraryRepository(SQLiteRoleRepository):
     It reuses role database schema 1 unchanged and adds two objects that the
     project database never needs, so it is a separate file rather than a
     migration of existing project databases.
+
+    Only ``install`` writes. It leaves the database as a single file (rollback
+    journal, not WAL), and every query opens it read-only, so selection,
+    search and status never create or change anything in the machine
+    directory.
     """
+
+    def reader(self) -> sqlite3.Connection:
+        connection = sqlite3.connect(f"file:{self.path.as_posix()}?mode=ro", uri=True, timeout=5)
+        connection.row_factory = sqlite3.Row
+        return connection
 
     def initialize(self) -> bool:
         fts5 = super().initialize()
@@ -197,6 +215,8 @@ class LibraryRepository(SQLiteRoleRepository):
                          revision=excluded.revision, manifest_hash=excluded.manifest_hash""",
                     (CATALOG_ID, str(manifest["version"]), manifest_hash),
                 )
+            connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            connection.execute("PRAGMA journal_mode = DELETE")
         finally:
             connection.close()
         return {
@@ -210,7 +230,10 @@ class LibraryRepository(SQLiteRoleRepository):
     def installed(self) -> dict[str, Any]:
         if not self.path.is_file():
             return {"installed": False}
-        connection = self.connect()
+        try:
+            connection = self.reader()
+        except sqlite3.OperationalError:
+            return {"installed": False}
         try:
             state = connection.execute(
                 "SELECT revision, manifest_hash FROM catalog_state WHERE catalog_id = ?", (CATALOG_ID,)
@@ -235,7 +258,7 @@ class LibraryRepository(SQLiteRoleRepository):
         """Return a role with the foundations it composes, in declared order."""
         if not self.path.is_file():
             return None
-        connection = self.connect()
+        connection = self.reader()
         try:
             row = connection.execute(
                 "SELECT payload_json, source, content_hash FROM roles WHERE role_id = ?", (role_id,)

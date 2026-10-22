@@ -43,7 +43,7 @@ with tempfile.TemporaryDirectory(prefix="hubicg-release-smoke-") as temporary:
     )
     isolated_environment = {
         **os.environ, "PYTHONPATH": str(installed), "PYTHONNOUSERSITE": "1",
-        "HUBICG_HOME": str(root / "machine"),
+        "HUBICG_HOME": str(root / "machine"), "PYTHONIOENCODING": "utf-8",
     }
 
     steps: list[str] = []
@@ -52,7 +52,7 @@ with tempfile.TemporaryDirectory(prefix="hubicg-release-smoke-") as temporary:
         if as_json:
             prefix.append("--json")
         result = subprocess.run(
-            [*prefix, *command], check=True, capture_output=True, text=True,
+            [*prefix, *command], check=True, capture_output=True, text=True, encoding="utf-8",
             cwd=project, env=isolated_environment,
         )
         steps.append(label or " ".join(command))
