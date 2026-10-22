@@ -331,6 +331,25 @@ def test_machine_directory_link_is_refused(tmp_path: Path) -> None:
     assert not (target / "library.db").exists()
 
 
+@pytest.mark.parametrize("name", ["with#hash", "with?query"])
+def test_uri_characters_in_the_machine_directory(tmp_path: Path, name: str) -> None:
+    if "?" in name and sys.platform == "win32":
+        pytest.skip("Windows does not allow '?' in directory names")
+    home = tmp_path / name
+    root = project(tmp_path)
+    assert run(root, "--home", str(home), "library", "install").returncode == 0
+    status = json.loads(run(root, "--home", str(home), "--json", "library", "status").stdout)
+    assert status["current"] is True
+
+
+def test_unwritable_machine_directory_is_a_usage_error(tmp_path: Path) -> None:
+    blocker = tmp_path / "file"
+    blocker.write_text("not a directory", encoding="utf-8")
+    result = run(project(tmp_path), "--home", str(blocker / "home"), "--json", "library", "install")
+    assert result.returncode == 2
+    assert json.loads(result.stderr)["status"] == "error"
+
+
 def test_reported_database_path_is_resolved(tmp_path: Path) -> None:
     home = tmp_path / "a" / ".." / "home"
     installed = json.loads(run(project(tmp_path), "--home", str(home), "--json", "library", "install").stdout)

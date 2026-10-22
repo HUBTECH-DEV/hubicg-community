@@ -139,7 +139,9 @@ class LibraryRepository(SQLiteRoleRepository):
     """
 
     def reader(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(f"file:{self.path.as_posix()}?mode=ro", uri=True, timeout=5)
+        # as_uri() percent-encodes the path, so '?' or '#' in a directory name
+        # cannot leak into the URI query.
+        connection = sqlite3.connect(f"{self.path.resolve().as_uri()}?mode=ro", uri=True, timeout=5)
         connection.row_factory = sqlite3.Row
         return connection
 

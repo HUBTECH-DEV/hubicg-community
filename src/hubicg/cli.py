@@ -662,7 +662,10 @@ def library_status(ctx: Context, _args: argparse.Namespace) -> None:
 def library_install(ctx: Context, _args: argparse.Namespace) -> None:
     manifest, digest, roles, foundations = verified_library()
     repository = machine_library(ctx)
-    result = repository.install(manifest, digest, roles, foundations)
+    try:
+        result = repository.install(manifest, digest, roles, foundations)
+    except (OSError, sqlite3.Error) as error:
+        raise HubICGError(f"cannot write the machine library at {repository.path}: {error}", EXIT_USAGE) from error
     emit(
         ctx,
         {"status": "installed", "version": manifest["version"], "manifestHash": digest,
