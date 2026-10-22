@@ -565,42 +565,56 @@ function Invoke-GhDeviceLogin {
     # Runs the official browser flow without a console. gh prints the one-time
     # code and the URL; both are relayed to the interface as a browser_code
     # action while the engine waits for gh to finish.
-    $timeout = 900
+    param([int]$TimeoutSeconds = 900)
+    $timeout = [Math]::Max(1, $TimeoutSeconds)
     $info = New-ToolStartInfo (Find-Tool 'gh') @('auth', 'login', '--hostname', 'github.com', '--git-protocol', 'https', '--web')
-    $process = [System.Diagnostics.Process]::Start($info)
-    $process.StandardInput.Close()
-    $stdout = $process.StandardOutput.ReadToEndAsync()
-    $deadline = (Get-Date).AddSeconds($timeout)
-    $code = ''; $url = 'https://github.com/login/device'; $announced = $false
-    $pending = $process.StandardError.ReadLineAsync()
-    while ($true) {
-        if ($pending.Wait(1000)) {
-            $line = $pending.Result
-            if ($null -eq $line) { break }
-            $m = [regex]::Match($line, 'one-time code:\s*([A-Z0-9]{4}-[A-Z0-9]{4})')
-            if ($m.Success) { $code = $m.Groups[1].Value }
-            $u = [regex]::Match($line, '(https://\S+/login/device\S*)')
-            if ($u.Success) { $url = $u.Groups[1].Value }
-            if ($code -and -not $announced -and ($u.Success -or $line -match 'Open this URL|browser')) {
-                $data = [ordered]@{ id = 'gh-login'; kind = 'browser_code'; blocking = $true; url = $url; code = $code; timeoutSeconds = $timeout; browserOpenedByTool = $false }
-                Send-Event -Type 'action_required' -Step 'gh-auth' -Status 'action_required' -Message "Abra $url e digite o codigo $code." -Data $data
-                $announced = $true
+    $process = $null
+    $clock = [Diagnostics.Stopwatch]::StartNew()
+    try {
+        $process = [System.Diagnostics.Process]::Start($info)
+        $process.StandardInput.Close()
+        $stdout = $process.StandardOutput.ReadToEndAsync()
+        $code = ''; $url = 'https://github.com/login/device'; $announced = $false
+        $pending = $process.StandardError.ReadLineAsync()
+        while ($true) {
+            if ($clock.Elapsed.TotalSeconds -ge $timeout) {
+                try { if (-not $process.HasExited) { $process.Kill() } } catch { }
+                Send-Event -Type 'action_resolved' -Step 'gh-auth' -Status 'timeout' -Message 'O codigo expirou sem login.' -Data ([ordered]@{ id = 'gh-login' })
+                return $false
             }
-            $pending = $process.StandardError.ReadLineAsync()
+            if ($null -ne $pending -and $pending.Wait(100)) {
+                $line = $pending.Result
+                if ($null -eq $line) { $pending = $null }
+                else {
+                    $m = [regex]::Match($line, 'one-time code:\s*([A-Z0-9]{4}-[A-Z0-9]{4})')
+                    if ($m.Success) { $code = $m.Groups[1].Value }
+                    $u = [regex]::Match($line, '(https://\S+/login/device\S*)')
+                    if ($u.Success) { $url = $u.Groups[1].Value }
+                    if ($code -and -not $announced -and ($u.Success -or $line -match 'Open this URL|browser')) {
+                        $data = [ordered]@{ id = 'gh-login'; kind = 'browser_code'; blocking = $true; url = $url; code = $code; timeoutSeconds = $timeout; browserOpenedByTool = $false }
+                        Send-Event -Type 'action_required' -Step 'gh-auth' -Status 'action_required' -Message "Abra $url e digite o codigo $code." -Data $data
+                        $announced = $true
+                    }
+                    $pending = $process.StandardError.ReadLineAsync()
+                }
+            }
+            # EOF on stderr does not mean the login process has exited.
+            if ($process.HasExited -and $null -eq $pending) { break }
+            if ($null -eq $pending) { Start-Sleep -Milliseconds 100 }
         }
-        if ((Get-Date) -gt $deadline) {
-            try { $process.Kill() } catch { }
-            Send-Event -Type 'action_resolved' -Step 'gh-auth' -Status 'timeout' -Message 'O codigo expirou sem login.' -Data ([ordered]@{ id = 'gh-login' })
-            return $false
+        [void]$stdout.Wait(1000)
+        $ok = ($process.ExitCode -eq 0) -and (Test-GhAuth)
+        if ($announced) {
+            Send-Event -Type 'action_resolved' -Step 'gh-auth' -Status $(if ($ok) { 'completed' } else { 'failed' }) -Message $(if ($ok) { 'Login no GitHub concluido.' } else { 'O login no GitHub nao foi concluido.' }) -Data ([ordered]@{ id = 'gh-login' })
+        }
+        return $ok
+    } finally {
+        $clock.Stop()
+        if ($null -ne $process) {
+            try { if (-not $process.HasExited) { $process.Kill() } } catch { }
+            $process.Dispose()
         }
     }
-    $process.WaitForExit()
-    [void]$stdout.Wait(1000)
-    $ok = ($process.ExitCode -eq 0) -and (Test-GhAuth)
-    if ($announced) {
-        Send-Event -Type 'action_resolved' -Step 'gh-auth' -Status $(if ($ok) { 'completed' } else { 'failed' }) -Message $(if ($ok) { 'Login no GitHub concluido.' } else { 'O login no GitHub nao foi concluido.' }) -Data ([ordered]@{ id = 'gh-login' })
-    }
-    return $ok
 }
 
 function Step-GhAuth {

@@ -855,7 +855,9 @@ claude_auth_probe() {
   if [ $code -eq 124 ]; then
     CLAUDE_AUTH_STATE="unknown"; CLAUDE_AUTH_DETAIL="claude auth status nao respondeu em 30 s"; return
   fi
-  if ! printf '%s' "$out" | grep -Eq '"loggedIn"[[:space:]]*:[[:space:]]*(true|false)'; then
+  # Validate the whole response and require a root boolean before interpreting it.
+  # auth mode also strips account-identifying fields from this in-memory value.
+  if ! out=$(printf '%s' "$out" | LC_ALL=C awk -v mode=auth -f "$JSON_READER"); then
     CLAUDE_AUTH_STATE="unknown"; CLAUDE_AUTH_DETAIL="claude auth status respondeu sem o JSON esperado (codigo $code)"; return
   fi
   # Only non-identifying fields are read: no e-mail, no organization.

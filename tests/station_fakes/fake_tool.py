@@ -209,6 +209,9 @@ def fake_claude(args: list[str], state: dict) -> int:
     if args[:2] == ["auth", "status"]:
         if state.get("claude_auth_delay"):
             time.sleep(state["claude_auth_delay"])
+        if "claude_auth_raw" in state:
+            out(state["claude_auth_raw"])
+            return state.get("claude_auth_exit", 0)
         if "claude_auth_reply" in state:
             out(json.dumps({"loggedIn": state["claude_auth_reply"]}))
             return state.get("claude_auth_exit", 0)

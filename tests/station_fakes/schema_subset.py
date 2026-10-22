@@ -119,5 +119,3 @@ def validate_instance(value: Any, schema: dict[str, Any], location: str = "$") -
                 raise SchemaValidationError(
                     f"{location}: unexpected property {key!r}"
                 )
-
-

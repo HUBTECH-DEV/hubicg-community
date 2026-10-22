@@ -556,6 +556,18 @@ class CenariosDoMotor:
                 self.assertEqual(r.acoes()[0]["data"]["id"], "claude-auth-unverified")
                 self.assertFalse(any(c["tool"] == "claude" and "login" in c["args"] for c in m.chamadas()))
 
+    def test_json_auth_invalido_ou_aninhado_nao_pede_login(self) -> None:
+        m = self.maquina_pronta()
+        for raw in ('{"loggedIn":false', 'text "loggedIn":false',
+                    '{"nested":{"loggedIn":false}}', '{"nested":{"loggedIn":true}}',
+                    '{"loggedIn":false} trailing'):
+            with self.subTest(raw=raw):
+                m.ajustar(claude_auth_raw=raw)
+                r = m.rodar("-Only" if self.motor == "ps1" else "--only", "claude-cli-auth")
+                self.assertEqual(r.codigo, 3, r)
+                self.assertEqual(r.acoes()[0]["data"]["id"], "claude-auth-unverified")
+                self.assertFalse(any(c["tool"] == "claude" and "login" in c["args"] for c in m.chamadas()))
+
     def test_gravacao_do_git_que_falha_e_falha_e_nao_configured(self) -> None:
         m = self.maquina_pronta()
         m.ajustar(git_config={"credential.https://github.com.helper": ["!gh auth git-credential"]},
@@ -700,6 +712,62 @@ class CenariosDoMotor:
 @unittest.skipUnless(os.name == "nt" and shutil.which("powershell.exe"), "motor PowerShell roda no Windows")
 class MotorWindowsTests(CenariosDoMotor, unittest.TestCase):
     motor = "ps1"
+
+    def test_gh_stderr_eof_nao_remove_prazo(self) -> None:
+        # Load only the function under test, never execute a real engine/login.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            child = root / "close_stderr.py"
+            child.write_text(
+                'import os, sys, time\n'
+                'from pathlib import Path\n'
+                'sys.stderr.write("one-time code: ABCD-1234\\nOpen this URL: https://github.com/login/device\\n")\n'
+                'sys.stderr.flush()\nos.close(2)\n'
+                'Path(__file__).with_suffix(".pid").write_text(str(os.getpid()))\n'
+                'time.sleep(60)\n', encoding="utf-8")
+            harness = root / "deadline.ps1"
+            harness.write_text(r'''
+param([string]$Engine, [string]$Python, [string]$ChildScript)
+$ErrorActionPreference = 'Stop'
+$ast = [Management.Automation.Language.Parser]::ParseFile($Engine, [ref]$null, [ref]$null)
+$function = $ast.FindAll({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Invoke-GhDeviceLogin'}, $true)[0]
+Invoke-Expression $function.Extent.Text
+$script:events = New-Object Collections.ArrayList
+function Find-Tool { param($Name) return $Python }
+function Test-GhAuth { throw 'timeout must not query authentication' }
+function Send-Event {
+    param($Type, $Step, $Status, $Message, $Data)
+    [void]$script:events.Add(@{ type=$Type; status=$Status; data=$Data })
+}
+function New-ToolStartInfo {
+    param($Path, $Arguments)
+    $info = New-Object Diagnostics.ProcessStartInfo
+    $info.FileName = $Python
+    $info.Arguments = '"' + $ChildScript + '"'
+    $info.UseShellExecute = $false
+    $info.CreateNoWindow = $true
+    $info.RedirectStandardInput = $true
+    $info.RedirectStandardOutput = $true
+    $info.RedirectStandardError = $true
+    return $info
+}
+$clock = [Diagnostics.Stopwatch]::StartNew()
+$result = Invoke-GhDeviceLogin -TimeoutSeconds 1
+if ($result -ne $false -or $clock.Elapsed.TotalSeconds -gt 10) { throw 'deadline not enforced' }
+$timeouts = @($script:events | Where-Object { $_.type -eq 'action_resolved' -and $_.status -eq 'timeout' })
+if ($timeouts.Count -ne 1) { throw 'missing timeout event' }
+$childPid = [int](Get-Content -LiteralPath ([IO.Path]::ChangeExtension($ChildScript, '.pid')))
+for ($attempt=0; $attempt -lt 20; $attempt++) {
+    if (-not (Get-Process -Id $childPid -ErrorAction SilentlyContinue)) { exit 0 }
+    Start-Sleep -Milliseconds 50
+}
+throw 'login child still alive'
+''', encoding="utf-8-sig")
+            result = subprocess.run(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+                                     str(harness), "-Engine", str(MOTOR_PS1), "-Python", sys.executable,
+                                     "-ChildScript", str(child)], capture_output=True, text=True,
+                                    encoding="utf-8", errors="replace", timeout=20)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_arquivo_e_utf8_com_bom(self) -> None:
         self.assertTrue(MOTOR_PS1.read_bytes().startswith(b"\xef\xbb\xbf"))
