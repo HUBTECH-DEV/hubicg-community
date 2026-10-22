@@ -4,6 +4,14 @@
 
 ### Added
 
+- Composable `role-v2` contract and shared foundation contract; the CLI reads
+  `role-v1` and `role-v2` (ADR-005).
+- Official role library packaged with the CLI: 65 `role-v2` roles and 17
+  foundations, pinned by a SHA-256 manifest.
+- Machine-wide SQLite role library (`hubicg library verify | status | install
+  | show`), stored as JSON with the role-to-foundation link derived by
+  `json_each`; selection and search include it below project roles.
+- `foundation:` / `fundamento:` selection filter.
 - Canonical Community/Enterprise repository boundary and promotion direction.
 - Public Principal DevOps Engineer and Principal Git Engineer roles.
 - Community governance and legal-readiness documents.

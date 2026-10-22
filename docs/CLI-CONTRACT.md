@@ -1,6 +1,8 @@
 # CLI contract
 
-Global options precede commands: `hubicg --root PATH --json COMMAND`.
+Global options precede commands: `hubicg --root PATH --home PATH --json COMMAND`.
+`--home` selects the machine data directory; without it the CLI uses
+`HUBICG_HOME`, then the platform user data directory.
 
 | Exit | Meaning |
 |---:|---|
@@ -38,6 +40,39 @@ conflicts. It never calls a network service.
 Backups are addressed by the first 16 hexadecimal characters of their SHA-256.
 Restoration requires that exact value as explicit approval and validates the
 database before replacement.
+
+Roles may use either public contract: `role-v1` or the composable `role-v2`
+(see `docs/ROLE-SCHEMA-COMPATIBILITY.md`). Search, selection, export and the
+Claude Code adapter read both.
+
+## Official role library
+
+```text
+hubicg library verify
+hubicg library status
+hubicg library install
+hubicg library show ROLE_ID
+```
+
+The package ships an official library of `role-v2` roles and shared
+foundations under `hubicg/library/`, pinned by `manifest.json` (SHA-256 per
+file). `verify` checks hashes, schemas and that every foundation a role
+composes is shipped. `install` verifies first and then replaces the official
+roles in the machine database `library.db` in one transaction; it is
+idempotent, removes official roles the new library no longer ships and never
+overwrites a role another source owns under the same ID.
+
+| Platform | Default machine directory |
+|---|---|
+| Windows | `%LOCALAPPDATA%\HubICG` |
+| macOS | `~/Library/Application Support/HubICG` |
+| Linux and others | `$XDG_DATA_HOME/hubicg`, else `~/.local/share/hubicg` |
+
+`install` is the only command that writes outside `.hubicg/`, and only to that
+directory. Once installed, `roles select` and `roles search` include the
+official roles, with `custom` and `project` roles taking precedence over an
+official role with the same ID. Selection never creates the machine database.
+`show` returns a role with the foundations it composes, in declared order.
 
 ## Claude Code adapter
 

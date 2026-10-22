@@ -50,7 +50,26 @@ hubicg --root . evidence verify
 hubicg --root . evidence changes verify
 ```
 
-Mutating commands require explicit input and never write outside `.hubicg/`.
+Mutating commands require explicit input and never write outside `.hubicg/`,
+with one documented exception: `library install`, which writes the machine
+role library.
+
+### Official role library
+
+The package ships 65 Principal roles and 17 shared foundations in the
+composable `role-v2` contract. Install them once per machine; every project on
+that machine can then select them:
+
+```sh
+hubicg library verify
+hubicg library install
+hubicg library show principal-tech-lead
+hubicg --root . roles select "fundamento:flow-delivery" --count 3
+```
+
+See `docs/CLI-CONTRACT.md` for the machine directory per platform and
+`docs/ROLE-LIBRARY.md` for provenance and updates.
+
 Use `--json` before the command for machine-readable output.
 
 ## Project health
