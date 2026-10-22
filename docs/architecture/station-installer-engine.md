@@ -325,7 +325,7 @@ de novo", que roda o motor outra vez.
 | `claude-path` | `claude-cli` | `confirm` | `claude.addToPath` (Linux/macOS: incluir `~/.local/bin` no perfil do shell) |
 | `desktop-login-confirm` | `claude-desktop-auth` | `confirm` | `desktop.loginConfirmed` |
 | `package-manager-missing` | `git`, `gh` | `external` | instalar o gerenciador indicado |
-| `privilege-required` | `git`, `gh` | `external` | rodar como usuário com `sudo` |
+| `privilege-required` | `git`, `gh` | `run_in_terminal` ou `external` | Com sudo disponível, abrir o motor como usuário normal em terminal interativo; sem sudo, pedir uma conta autorizada. |
 | `agents-export` | `agents` | `external` | gerar/entregar o export público ao clone selecionado |
 | `agents-export-stale` | `agents` | `external` | preservar o export antigo e gerar um novo correspondente à biblioteca do clone |
 | `gh-apt-conflict` | `gh` | `external` | reconciliar configuração APT divergente, mantida sem sobrescrita |

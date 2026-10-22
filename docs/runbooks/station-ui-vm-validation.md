@@ -139,6 +139,20 @@ de alto contraste e confira que nada some.
      isso é a dependência do contrato, não defeito;
    - o `sudo` do apt pede a **sua senha no terminal do sistema**, nunca na interface. Se o motor pedir isso como
      pendência, ela aparece como "Permissão de administrador".
+     O botão abre um helper com TTY e o motor como usuário normal, limitado a `--only git,gh`,
+     sem `--json`/`--non-interactive`. Somente o motor executa sudo nas operações de sistema;
+     a interface e o motor inteiro não são elevados. Logs e configuração desse ciclo ficam
+     num diretório privado `hubicg-system-tools-*` temporário, preservado para diagnóstico.
+     Conclua ou cancele com Ctrl+C nesse terminal antes de verificar de novo na interface.
+     Enquanto o helper está pendente, não deve iniciar outro motor. Após terminar ou cancelar,
+     verificar de novo deve consultar as versões reais, sem considerar o botão OK como sucesso.
+     Confira também cancelamento/fechamento do terminal e preservação de arquivos APT divergentes.
+     O grupo foreground do motor é separado da GUI e do supervisor. A conclusão só libera
+     novo ciclo após verificar que não há descendentes vivos; morte abrupta do supervisor é
+     reconciliada pelo grupo registrado, preservando os logs. Se o terminal não iniciar o helper
+     em 60 segundos, a próxima verificação cancela a partida sob bloqueio de arquivo;
+     um helper tardio reconhece o cancelamento e não executa o motor.
+     **Aceite visual em VM real pendente:** testes com fakes/WSL não homologam esta etapa.
 5. **KDE (opcional).** Numa VM Kubuntu, confira que a interface usa `kdialog` (barra de progresso do KDE).
 6. **Sem ambiente gráfico.** Num terminal de texto (`Ctrl+Alt+F3` ou SSH), rode
    `~/Downloads/hubicg/installers/station/ui/linux/hubicg-station-ui.sh`. Esperado: o modo terminal, com as

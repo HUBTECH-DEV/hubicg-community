@@ -1071,7 +1071,12 @@ class MotorLinuxTests(CenariosDoMotor, unittest.TestCase):
         m.ajustar(sudo_passwordless=False)
         r = m.rodar(respostas=self.respostas_completas())
         acao = next(a for a in r.acoes() if a["data"]["id"] == "privilege-required")
-        self.assertEqual(acao["data"]["kind"], "external")
+        self.assertEqual(acao["data"]["kind"], "run_in_terminal")
+        command = shlex.split(acao["data"]["command"])
+        self.assertEqual(command[command.index("--only") + 1], "git")
+        self.assertNotIn("--non-interactive", command)
+        self.assertNotIn("--json", command)
+        self.assertNotEqual(command[0], "sudo")
         self.assertEqual(r.status()["git"], "action_required")
         self.assertFalse(any(c["tool"] == "apt-get" and "install" in c["args"] for c in m.chamadas()))
 

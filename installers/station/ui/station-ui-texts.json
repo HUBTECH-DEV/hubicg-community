@@ -7,7 +7,7 @@
     "title": "Vamos preparar esta estação para o HubICG",
     "body": [
       "Este assistente conduz o instalador da estação: primeiro verifica o computador, depois instala e configura só o que faltar.",
-      "Ele instala o Git, o GitHub CLI, o Claude Code e os agentes HubICG, e clona o repositório HubICG Enterprise.",
+      "Ele instala o Git, o GitHub CLI, o Claude Code e os agentes HubICG, e clona o repositório HubICG Community.",
       "Os logins usam sempre o fluxo oficial de cada ferramenta, no navegador ou no terminal. Você nunca digita senha ou token neste assistente.",
       "Pode rodar de novo quando quiser: o que já estiver pronto aparece como “já estava”."
     ]
@@ -18,7 +18,7 @@
     "git-identity": "Identidade do Git (nome e e-mail)",
     "gh": "GitHub CLI",
     "gh-auth": "Login no GitHub",
-    "repo": "Repositório HubICG Enterprise",
+    "repo": "Repositório HubICG Community",
     "claude-cli": "Claude Code (linha de comando)",
     "claude-cli-auth": "Login no Claude Code",
     "claude-desktop": "Claude Desktop",
@@ -144,7 +144,7 @@
     },
     "repo-access": {
       "title": "Acesso ao repositório",
-      "guide": "A sua conta do GitHub ainda não tem acesso ao repositório HubICG Enterprise. Peça acesso a um owner da organização HUBTECH-DEV e, depois de liberado, verifique de novo."
+      "guide": "Não foi possível consultar o repositório público HubICG Community. Confira a conexão e o acesso ao GitHub e verifique de novo."
     },
     "claude-login": {
       "title": "Login no Claude Code",
@@ -168,7 +168,7 @@
     },
     "privilege-required": {
       "title": "Permissão de administrador",
-      "guide": "Este passo precisa de um usuário com permissão de administrador (sudo). Peça ajuda a quem administra o computador e verifique de novo."
+      "guide": "Este passo precisa de sudo. Se houver um comando abaixo, abra o terminal pelo botão: a senha será pedida pelo sistema nesse terminal. Para interromper a ação externa, use Ctrl+C nele. Depois volte e verifique de novo. Sem sudo disponível, peça ajuda a quem administra o computador."
     }
   },
   "environment": {

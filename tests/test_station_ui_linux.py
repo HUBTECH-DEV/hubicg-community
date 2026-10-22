@@ -451,5 +451,203 @@ class ZenityWizardTests(unittest.TestCase):
         self.assertFalse(any("--hide-text" in arg or "--password" in arg for call in calls for arg in call))
 
 
+@unittest.skipUnless(os.name == "posix", "helper usa terminal POSIX")
+class SystemToolsHelperTests(unittest.TestCase):
+    def test_event_command_is_ignored_and_pending_blocks_new_engine(self) -> None:
+        frontend = ui.TerminalFrontend(ui.Texts(), stdout=io.StringIO())
+        wizard = ui.Wizard(frontend, SIMULATOR, ui.Texts())
+        wizard.repo_dir = "/tmp/clone with spaces"
+        wizard.last = ui.RunState()
+        wizard.last.exit_code = 3
+        action = {"id": "privilege-required", "command": "sudo arbitrary --token secret"}
+        with mock.patch.object(ui.os, "geteuid", return_value=1000), \
+                mock.patch.object(ui, "terminal_command", side_effect=lambda args: ["terminal", *args]), \
+                mock.patch.object(ui.subprocess, "Popen") as popen:
+            popen.return_value.poll.return_value = None
+            self.assertNotIn("arbitrary", frontend.action_command(action))
+            self.assertTrue(frontend.action_terminal(action))
+            directory = wizard.system_tools.directory
+            self.addCleanup(shutil.rmtree, directory)
+            self.assertEqual(directory.stat().st_mode & 0o777, 0o700)
+            request = json.loads((directory / "request.json").read_text())
+            self.assertEqual(set(request), {"schema", "engine", "repoDir"})
+            self.assertIn("--system-tools-helper", popen.call_args.args[0])
+            self.assertNotIn("sudo", popen.call_args.args[0])
+            self.assertTrue(frontend.action_terminal(action))
+            self.assertEqual(popen.call_count, 1)
+            with mock.patch.object(ui, "EngineRun") as engine:
+                state, _ = wizard.apply(new_session=True)
+                self.assertIs(state, wizard.last)
+                self.assertEqual(state.exit_code, 3)
+                engine.assert_not_called()
+            (directory / "result.json").write_text('{"exitCode":0}')
+            # Helper success is not installation success: re-run the real check/apply path.
+            checked = ui.RunState()
+            checked.exit_code = 3
+            with mock.patch.object(frontend, "run", return_value=checked) as run, \
+                    mock.patch.object(ui, "EngineRun"):
+                state, _ = wizard.apply(new_session=True)
+                run.assert_called_once()
+                self.assertEqual(state.exit_code, 3)
+
+    @unittest.skipIf(os.name != "posix" or getattr(os, "geteuid", lambda: 0)() == 0,
+                     "executar como usuário normal para provar o TTY")
+    def test_helper_inherits_real_tty_and_limits_arguments(self) -> None:
+        import pty
+        import signal
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp)
+            engine = directory / "fake engine.sh"
+            capture = directory / "args"
+            engine.write_text('test -t 0 && test -t 1 && test -t 2 || exit 9\n'
+                              'printf "%s\\n" "$@" > "' + str(capture) + '"\n')
+            request = {"schema": "hubicg.station.system-tools/1", "engine": str(engine),
+                       "repoDir": str(directory / "clone with spaces"), "command": "sudo bad", "only": "all"}
+            (directory / "request.json").write_text(json.dumps(request))
+            pid, master = pty.fork()
+            if pid == 0:
+                os.execv(sys.executable, [sys.executable, str(LINUX / "hubicg_station_ui.py"),
+                                         "--system-tools-helper", str(directory)])
+            try:
+                deadline = time.monotonic() + 10
+                while True:
+                    waited, status = os.waitpid(pid, os.WNOHANG)
+                    if waited:
+                        break
+                    if time.monotonic() > deadline:
+                        os.kill(pid, signal.SIGKILL)
+                        os.waitpid(pid, 0)
+                        self.fail("helper TTY não terminou")
+                    time.sleep(0.05)
+                self.assertEqual(os.waitstatus_to_exitcode(status), 0)
+                args = capture.read_text().splitlines()
+                self.assertEqual(args, ["--only", "git,gh", "--repo-dir", request["repoDir"],
+                                       "--config-dir", str(directory / "config"),
+                                       "--log-file", str(directory / "engine.jsonl")])
+                self.assertEqual(json.loads((directory / "result.json").read_text())["exitCode"], 0)
+            finally:
+                os.close(master)
+
+    @unittest.skipIf(os.name != "posix" or getattr(os, "geteuid", lambda: 0)() == 0, "usuário normal")
+    def test_cancel_waits_for_child_and_preserves_state(self) -> None:
+        import pty
+        import signal
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp)
+            engine = directory / "fake.sh"
+            engine.write_text("trap '' INT TERM\n(trap '' INT TERM; while :; do sleep 1; done) &\n"
+                              'echo "$!" > "' + str(directory / "grandchild") + '"\nwait\n')
+            (directory / "request.json").write_text(json.dumps({"schema": "hubicg.station.system-tools/1",
+                "engine": str(engine), "repoDir": str(directory / "clone")}))
+            preserved = directory / "engine.jsonl"
+            preserved.write_text("diagnóstico")
+            pid, master = pty.fork()
+            if pid == 0:
+                os.execv(sys.executable, [sys.executable, str(LINUX / "hubicg_station_ui.py"),
+                                         "--system-tools-helper", str(directory)])
+            record = None
+            try:
+                deadline = time.monotonic() + 10
+                while not (directory / "grandchild").exists() and time.monotonic() < deadline:
+                    time.sleep(0.05)
+                self.assertTrue((directory / "grandchild").exists())
+                record = json.loads((directory / "started").read_text())
+                self.assertNotEqual(record["pgid"], pid)
+                os.kill(pid, signal.SIGTERM)
+                helper = ui.SystemToolsHelper(engine, lambda: str(directory / "clone"))
+                helper.directory = directory
+                self.assertTrue(helper.pending())
+                deadline = time.monotonic() + 12
+                while helper.pending() and time.monotonic() < deadline:
+                    time.sleep(0.05)
+                self.assertFalse(helper.pending(), "netos devem encerrar antes de liberar a GUI")
+                self.assertFalse(ui.system_tools_group_alive(record))
+                os.waitpid(pid, 0)
+            finally:
+                if record and ui.system_tools_group_alive(record):
+                    os.killpg(record["pgid"], signal.SIGKILL)
+                os.close(master)
+            self.assertEqual(preserved.read_text(), "diagnóstico")
+            self.assertEqual(json.loads((directory / "result.json").read_text())["exitCode"], 130)
+
+    @unittest.skipIf(os.name != "posix" or getattr(os, "geteuid", lambda: 0)() == 0, "usuário normal")
+    def test_abrupt_helper_death_keeps_live_group_pending_then_recovers(self) -> None:
+        import pty
+        import signal
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp)
+            engine = directory / "fake.sh"
+            engine.write_text('echo ready > "' + str(directory / "ready") + '"\nsleep 60\n')
+            (directory / "request.json").write_text(json.dumps({"schema": "hubicg.station.system-tools/1",
+                "engine": str(engine), "repoDir": str(directory / "clone")}))
+            pid, master = pty.fork()
+            if pid == 0:
+                os.execv(sys.executable, [sys.executable, str(LINUX / "hubicg_station_ui.py"),
+                                         "--system-tools-helper", str(directory)])
+            record = None
+            try:
+                deadline = time.monotonic() + 10
+                while not (directory / "ready").exists() and time.monotonic() < deadline:
+                    time.sleep(0.05)
+                self.assertTrue((directory / "ready").exists())
+                record = json.loads((directory / "started").read_text())
+                os.kill(pid, signal.SIGKILL)
+                os.waitpid(pid, 0)
+                helper = ui.SystemToolsHelper(engine, lambda: str(directory / "clone"))
+                helper.directory = directory
+                # SIGHUP may end the group on session-leader death; if alive, never release it.
+                if ui.system_tools_group_alive(record):
+                    self.assertTrue(helper.pending())
+                    self.assertFalse((directory / "result.json").exists())
+                    os.killpg(record["pgid"], signal.SIGKILL)
+                deadline = time.monotonic() + 5
+                while helper.pending() and time.monotonic() < deadline:
+                    time.sleep(0.05)
+                self.assertFalse(helper.pending())
+                self.assertEqual(json.loads((directory / "result.json").read_text())["exitCode"], 130)
+                self.assertTrue((directory / "request.json").exists())
+            finally:
+                if record and ui.system_tools_group_alive(record):
+                    os.killpg(record["pgid"], signal.SIGKILL)
+                os.close(master)
+
+    def test_root_or_missing_terminal_cannot_launch(self) -> None:
+        helper = ui.SystemToolsHelper(SIMULATOR, lambda: "/tmp/clone")
+        with mock.patch.object(ui.os, "geteuid", return_value=0), \
+                mock.patch.object(ui.subprocess, "Popen") as popen:
+            self.assertFalse(helper.launch())
+            popen.assert_not_called()
+        with mock.patch.object(ui.os, "geteuid", return_value=1000), \
+                mock.patch.object(ui, "terminal_command", return_value=None):
+            self.assertFalse(helper.launch())
+        self.assertIsNone(helper.directory)
+
+    @unittest.skipIf(os.name != "posix" or getattr(os, "geteuid", lambda: 0)() == 0, "usuário normal")
+    def test_missing_start_expires_atomically_and_late_helper_cannot_install(self) -> None:
+        import fcntl
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp)
+            helper = ui.SystemToolsHelper(SIMULATOR, lambda: str(directory / "clone"))
+            helper.directory = directory
+            helper.launched_at = time.monotonic() - 61
+            helper.process = mock.Mock()
+            helper.process.poll.return_value = 0  # daemonized terminal client is not the helper
+            (directory / "request.json").write_text(json.dumps({"schema": "hubicg.station.system-tools/1",
+                "engine": str(SIMULATOR), "repoDir": str(directory / "clone")}))
+            with (directory / "launch.lock").open("a") as lock:
+                fcntl.flock(lock, fcntl.LOCK_EX)
+                self.assertTrue(helper.pending(), "a partida que detém o gate não pode ser cancelada")
+            self.assertFalse(helper.pending())
+            self.assertEqual(json.loads((directory / "result.json").read_text())["exitCode"], 4)
+            with mock.patch.object(sys.stdin, "isatty", return_value=True), \
+                    mock.patch.object(sys.stdout, "isatty", return_value=True), \
+                    mock.patch.object(ui, "claim_system_tools_terminal") as claim, \
+                    mock.patch.object(ui.subprocess, "Popen") as popen:
+                self.assertEqual(ui.run_system_tools_helper(directory), 4)
+                claim.assert_not_called()
+                popen.assert_not_called()
+            self.assertFalse((directory / "started").exists())
+
+
 if __name__ == "__main__":
     unittest.main()

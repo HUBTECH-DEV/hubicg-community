@@ -553,7 +553,7 @@ function Set-AllSteps {
 
 function Select-RepoFolder {
   $dialog = New-Object System.Windows.Forms.FolderBrowserDialog
-  $dialog.Description = 'Escolha a pasta onde o repositório HubICG Enterprise será clonado.'
+  $dialog.Description = 'Escolha a pasta onde o repositório HubICG Community será clonado.'
   $dialog.ShowNewFolderButton = $true
   $parent = Split-Path -Parent $script:DirBox.Text
   if ($parent -and (Test-Path -LiteralPath $parent)) { $dialog.SelectedPath = $parent }

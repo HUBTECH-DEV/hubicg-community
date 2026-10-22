@@ -24,6 +24,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import uuid
 from pathlib import Path
 from typing import Any, Callable, Iterable
@@ -524,6 +525,226 @@ def open_terminal_with(command: str) -> bool:
     return True
 
 
+def system_tools_group_alive(record: dict[str, Any], *, exclude: int | None = None) -> bool:
+    """Linux process-group identity; zombies cannot write state or install packages."""
+    if Path("/proc/sys/kernel/random/boot_id").read_text().strip() != record["bootId"]:
+        return False
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdecimal() or int(entry.name) == exclude:
+            continue
+        try:
+            fields = (entry / "stat").read_text().rsplit(") ", 1)[1].split()
+            if fields[0] != "Z" and int(fields[2]) == record["pgid"] and int(fields[3]) == record["sid"]:
+                return True
+        except FileNotFoundError:
+            continue
+        except PermissionError:
+            # Never release another engine when liveness cannot be established.
+            return True
+    return False
+
+
+def claim_system_tools_terminal() -> tuple[dict[str, Any], int]:
+    previous = os.tcgetpgrp(0)
+    if os.getpgrp() != os.getpid():
+        os.setpgid(0, 0)
+    old = signal.signal(signal.SIGTTOU, signal.SIG_IGN)
+    try:
+        os.tcsetpgrp(0, os.getpgrp())
+    finally:
+        signal.signal(signal.SIGTTOU, old)
+    start = Path(f"/proc/{os.getpid()}/stat").read_text().rsplit(") ", 1)[1].split()[19]
+    return {"pid": os.getpid(), "start": start, "pgid": os.getpgrp(), "sid": os.getsid(0),
+            "bootId": Path("/proc/sys/kernel/random/boot_id").read_text().strip()}, previous
+
+
+def system_tools_child(directory: Path, ready_fd: int) -> int:
+    # No installation can begin until the parent has recorded this process group.
+    if os.geteuid() == 0 or not (os.isatty(0) and os.isatty(1)):
+        return 4
+    ready = os.read(ready_fd, 1)
+    os.close(ready_fd)
+    if ready != b"1":
+        return 130
+    request = json.loads((directory / "request.json").read_text())
+    command = ["bash", str(Path(request["engine"]).resolve()), "--only", "git,gh",
+               "--repo-dir", str(Path(request["repoDir"]).resolve()),
+               "--config-dir", str(directory / "config"), "--log-file", str(directory / "engine.jsonl")]
+    os.execvpe(command[0], command, os.environ)
+    return 4
+
+
+def run_system_tools_helper(directory: Path) -> int:
+    """Run only Git/GH as the normal user on a real terminal, with isolated state."""
+    code = 4
+    child: subprocess.Popen | None = None
+    handlers: dict[int, Any] = {}
+    record: dict[str, Any] | None = None
+    previous_group: int | None = None
+    ready_write: int | None = None
+    if directory.is_symlink() or directory.stat().st_uid != os.geteuid() or directory.stat().st_mode & 0o077:
+        return code
+    try:
+        if os.geteuid() == 0 or not (sys.stdin.isatty() and sys.stdout.isatty()):
+            return code
+        request_file = directory / "request.json"
+        if request_file.is_symlink():
+            return code
+        request = json.loads(request_file.read_text(encoding="utf-8"))
+        if request.get("schema") != "hubicg.station.system-tools/1":
+            return code
+        import fcntl
+        with (directory / "launch.lock").open("a") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            if (directory / "result.json").exists():
+                return code
+            record, previous_group = claim_system_tools_terminal()
+            # Publish the group before any child exists; lock excludes stale-launch recovery.
+            with (directory / "started").open("x") as stream:
+                json.dump(record, stream)
+        def interrupt(signum: int, frame: Any) -> None:
+            raise KeyboardInterrupt
+        for signum in (signal.SIGTERM, signal.SIGHUP):
+            handlers[signum] = signal.signal(signum, interrupt)
+        ready_read, ready_write = os.pipe()
+        try:
+            child = subprocess.Popen([sys.executable, str(Path(__file__).resolve()),
+                                      "--system-tools-child", str(directory), str(ready_read)],
+                                     pass_fds=(ready_read,), preexec_fn=os.setpgrp)
+        finally:
+            os.close(ready_read)
+        record["pgid"] = child.pid
+        pending_record = directory / "started.tmp"
+        pending_record.write_text(json.dumps(record), encoding="utf-8")
+        pending_record.replace(directory / "started")
+        old = signal.signal(signal.SIGTTOU, signal.SIG_IGN)
+        try:
+            os.tcsetpgrp(0, child.pid)
+        finally:
+            signal.signal(signal.SIGTTOU, old)
+        os.write(ready_write, b"1")
+        os.close(ready_write)
+        ready_write = None
+        code = child.wait()
+        while system_tools_group_alive(record, exclude=os.getpid()):
+            time.sleep(0.1)
+        return code
+    except KeyboardInterrupt:
+        if record is not None and child is not None and record["pgid"] == child.pid:
+            # Only the engine's dedicated foreground group is signalled, never the GUI/helper.
+            for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+                signal.signal(sig, signal.SIG_IGN)
+            for sig in (signal.SIGINT, signal.SIGTERM):
+                os.killpg(record["pgid"], sig)
+                deadline = time.monotonic() + 3
+                while system_tools_group_alive(record, exclude=os.getpid()) and time.monotonic() < deadline:
+                    time.sleep(0.1)
+                if not system_tools_group_alive(record, exclude=os.getpid()):
+                    break
+            if system_tools_group_alive(record, exclude=os.getpid()):
+                os.killpg(record["pgid"], signal.SIGKILL)
+                while system_tools_group_alive(record, exclude=os.getpid()):
+                    time.sleep(0.1)
+            if child is not None:
+                child.wait()
+        code = 130
+        return code
+    except (OSError, ValueError, KeyError):
+        return code
+    finally:
+        if ready_write is not None:
+            os.close(ready_write)
+        if previous_group is not None:
+            old = signal.signal(signal.SIGTTOU, signal.SIG_IGN)
+            try:
+                os.tcsetpgrp(0, previous_group)
+            except OSError:
+                pass
+            signal.signal(signal.SIGTTOU, old)
+        for signum, handler in handlers.items():
+            signal.signal(signum, handler)
+        # Keep logs/state for diagnosis; never remove a live helper's directory.
+        result = directory / "result.json"
+        if not result.exists() and (record is None or not system_tools_group_alive(record, exclude=os.getpid())):
+            with result.open("x", encoding="utf-8") as stream:
+                json.dump({"exitCode": code}, stream)
+
+
+class SystemToolsHelper:
+    """One pending external cycle; event command strings are never used here."""
+
+    def __init__(self, engine: Path, repo_dir: Callable[[], str]) -> None:
+        self.engine = engine.resolve()
+        self.repo_dir = repo_dir
+        self.directory: Path | None = None
+        self.process: subprocess.Popen | None = None
+        self.launched_at = time.monotonic()
+
+    def pending(self) -> bool:
+        if self.directory is None:
+            return False
+        started = self.directory / "started"
+        if started.exists():
+            try:
+                record = json.loads(started.read_text())
+                if system_tools_group_alive(record):
+                    return True
+            except (OSError, ValueError, KeyError):
+                return True
+            if not (self.directory / "result.json").exists():
+                (self.directory / "result.json").write_text('{"exitCode":130}', encoding="utf-8")
+            return False
+        if (self.directory / "result.json").exists():
+            return False
+        if time.monotonic() - self.launched_at > 60:
+            import fcntl
+            with (self.directory / "launch.lock").open("a") as lock:
+                try:
+                    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    return True
+                if not started.exists():
+                    # A late terminal will see the cancelled request under this same lock.
+                    (self.directory / "result.json").write_text('{"exitCode":4}', encoding="utf-8")
+                    return False
+            return True
+        if self.process and self.process.poll() not in (None, 0) and not (self.directory / "started").exists():
+            (self.directory / "result.json").write_text('{"exitCode":4}', encoding="utf-8")
+            return False
+        return True
+
+    def preview(self) -> str:
+        return shlex.join(["bash", str(self.engine), "--only", "git,gh"]) + " (logs e estado temporários próprios)"
+
+    def launch(self, *, here: bool = False) -> bool:
+        if self.pending():
+            return True
+        if os.geteuid() == 0:
+            return False
+        # Check availability before creating a pending request.
+        if not here and terminal_command([]) is None:
+            return False
+        self.directory = Path(tempfile.mkdtemp(prefix="hubicg-system-tools-"))
+        self.launched_at = time.monotonic()
+        request = {"schema": "hubicg.station.system-tools/1", "engine": str(self.engine),
+                   "repoDir": str(Path(self.repo_dir()).expanduser().resolve())}
+        with (self.directory / "request.json").open("x", encoding="utf-8") as stream:
+            json.dump(request, stream)
+        if here:
+            subprocess.run([sys.executable, str(Path(__file__).resolve()),
+                            "--system-tools-helper", str(self.directory)], check=False)
+            return True
+        command = terminal_command([sys.executable, str(Path(__file__).resolve()),
+                                    "--system-tools-helper", str(self.directory)])
+        try:
+            self.process = subprocess.Popen(command, env=fresh_env(), stdout=subprocess.DEVNULL,
+                                            stderr=subprocess.DEVNULL, start_new_session=True)
+        except OSError:
+            (self.directory / "result.json").write_text('{"exitCode":4}', encoding="utf-8")
+            return False
+        return True
+
+
 def markup(text: Any) -> str:
     return html.escape(str(text or ""), quote=False)
 
@@ -538,6 +759,17 @@ class Frontend:
 
     def __init__(self, texts: Texts) -> None:
         self.texts = texts
+        self.system_tools: SystemToolsHelper | None = None
+
+    def action_command(self, action: dict[str, Any]) -> str:
+        if action.get("id") == "privilege-required":
+            return self.system_tools.preview() if self.system_tools else "Motor da estação --only git,gh"
+        return str(action.get("command") or "")
+
+    def action_terminal(self, action: dict[str, Any]) -> bool:
+        if action.get("id") == "privilege-required":
+            return bool(self.system_tools and self.system_tools.launch())
+        return open_terminal_with(str(action["command"]))
 
     def welcome(self, engine: Path) -> bool:
         raise NotImplementedError
@@ -733,6 +965,11 @@ class TerminalFrontend(Frontend):
                 for answer in action["answers"]:
                     answers.update(self.ask_answer(answer))
             elif kind == "run_in_terminal" and action.get("command"):
+                if action.get("id") == "privilege-required" and self.system_tools:
+                    self.say(f"   Comando: {self.action_command(action)}")
+                    if self.yes("Executar Git/GH neste terminal, como usuário normal?"):
+                        self.system_tools.launch(here=True)
+                    continue
                 self.say(f"   Comando: {action['command']}")
                 self.say("   Rode o comando num terminal (pode ser este, em outra aba) e siga as instruções dele.")
                 self.ask("   Pressione Enter quando terminar…")
@@ -946,7 +1183,7 @@ class ZenityFrontend(DialogFrontend):
             return self.select(check, current, repo_dir)
         folder = repo_dir
         while True:
-            text = (f"O repositório HubICG Enterprise será clonado em:\n<b>{markup(folder)}</b>\n\n"
+            text = (f"O repositório HubICG Community será clonado em:\n<b>{markup(folder)}</b>\n\n"
                     f"<b>Como serão os logins</b>\n{markup(self.auth_preview())}\n\n"
                     "Nenhuma senha ou token é digitado neste assistente.")
             code, out = self.call(["--question", *self.base("Pasta do clone", 700), f"--text={text}",
@@ -1006,24 +1243,27 @@ class ZenityFrontend(DialogFrontend):
             for field in action["answers"]:
                 answers[field["key"]] = self.confirm(title, intro, field["label"])
         elif kind == "run_in_terminal" and action.get("command"):
-            command = action["command"]
+            command = self.action_command(action)
+            buttons = [] if action.get("id") == "privilege-required" else ["--extra-button=Copiar o comando"]
             while True:
                 code, out = self.call(["--question", *self.base(title, 640),
                                        f"--text={intro}\n\nComando oficial: <tt>{markup(command)}</tt>",
                                        "--ok-label=Abrir o terminal", "--cancel-label=Agora não",
-                                       "--extra-button=Copiar o comando"])
+                                       *buttons])
                 if out == "Copiar o comando":
                     copied = copy_to_clipboard(command)
                     self.call(["--info", *self.base(title, 420),
                                "--text=" + ("Comando copiado." if copied else f"Copie: <tt>{markup(command)}</tt>")])
                     continue
                 if code == 0:
-                    if open_terminal_with(command):
+                    if self.action_terminal(action):
                         self.call(["--info", *self.base(title, 520),
                                    "--text=Siga as instruções no terminal que abriu. Quando terminar, clique em OK."])
                     else:
-                        self.call(["--info", *self.base(title, 520),
-                                   f"--text=Não achei um terminal. Abra um e rode: <tt>{markup(command)}</tt>"])
+                        failure = ("Não foi possível abrir a etapa externa. Use uma sessão de usuário normal com terminal disponível. A instalação continua pendente."
+                                   if action.get("id") == "privilege-required" else
+                                   f"Não achei um terminal. Abra um e rode: <tt>{markup(command)}</tt>")
+                        self.call(["--info", *self.base(title, 520), f"--text={failure}"])
                 break
         else:
             extra = f"\n\n{markup(action['url'])}" if action.get("url") else ""
@@ -1225,12 +1465,12 @@ class KdialogFrontend(DialogFrontend):
                                                        "--yesno", f"{intro}\n\n{field['label']}?"])[0] == 0
             elif kind == "run_in_terminal" and action.get("command"):
                 code, _ = self.call([*self.title(guide["title"]), "--yes-label", "Abrir o terminal", "--no-label", "Agora não",
-                                     "--yesno", f"{intro}\n\nComando oficial: {action['command']}"])
+                                     "--yesno", f"{intro}\n\nComando oficial: {self.action_command(action)}"])
                 if code == 0:
-                    opened = open_terminal_with(action["command"])
+                    opened = self.action_terminal(action)
                     self.call([*self.title(guide["title"]), "--msgbox",
                                "Siga as instruções no terminal. Quando terminar, clique em OK." if opened
-                               else f"Não achei um terminal. Abra um e rode: {action['command']}"])
+                               else f"Não foi possível abrir o terminal como usuário normal. {self.action_command(action)}"])
             else:
                 extra = f"\n\n{action['url']}" if action.get("url") else ""
                 code, _ = self.call([*self.title(guide["title"]), "--yes-label", "Abrir o link" if action.get("url") else "Entendi",
@@ -1270,8 +1510,14 @@ class Wizard:
         self.repo_dir = ""
         self.session = Session()
         self.last: RunState | None = None
+        self.system_tools = SystemToolsHelper(self.engine, lambda: self.repo_dir)
+        self.frontend.system_tools = self.system_tools
 
     def apply(self, answers: dict[str, Any] | None = None, new_session: bool = False) -> tuple[RunState, str]:
+        if self.system_tools.pending():
+            self.frontend.fatal("A etapa Git/GH ainda está no terminal externo. Conclua ou interrompa com Ctrl+C nesse terminal antes de verificar de novo. A instalação continua pendente.")
+            assert self.last is not None
+            return self.last, "Etapa externa pendente; nenhum novo motor foi iniciado."
         if new_session:
             self.session = Session()
         answers_file = write_answers_file(answers) if answers else None
@@ -1357,7 +1603,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--engine", default=os.environ.get("HUBICG_STATION_ENGINE") or str(DEFAULT_ENGINE),
                         help="motor a conduzir (padrão: ../../hubicg-station.sh)")
     parser.add_argument("--frontend", choices=("auto", "zenity", "kdialog", "terminal"), default="auto")
+    parser.add_argument("--system-tools-helper", type=Path, help=argparse.SUPPRESS)
+    parser.add_argument("--system-tools-child", nargs=2, help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
+    if args.system_tools_child:
+        return system_tools_child(Path(args.system_tools_child[0]), int(args.system_tools_child[1]))
+    if args.system_tools_helper:
+        return run_system_tools_helper(args.system_tools_helper)
     texts = Texts()
     frontend = choose_frontend(args.frontend, texts)
     if frontend is None:

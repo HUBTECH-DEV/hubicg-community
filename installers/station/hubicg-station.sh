@@ -284,8 +284,15 @@ if [ "$OS_NAME" = "Darwin" ]; then
 elif has apt-get; then PKG="apt"; elif has dnf; then PKG="dnf"; fi
 
 need_privilege() {
-  request_action "$1" privilege-required external \
-    "Instalar pacotes exige privilegio de administrador. Rode o instalador num terminal com um usuario que tenha sudo (o sudo pede a senha a voce, nao ao instalador)."
+  if [ "$SUDO_MODE" = password ]; then
+    local command
+    printf -v command 'bash %q --only %q --repo-dir %q --config-dir %q' "$ENGINE_DIR/hubicg-station.sh" "$1" "$REPO_DIR" "$CONFIG_DIR"
+    request_action "$1" privilege-required run_in_terminal \
+      "Abra o terminal pelo botao da interface para executar somente esta etapa. O sudo pede a senha no terminal do sistema, nunca na interface ou no log. Ao terminar, volte e verifique de novo. Para interromper esta acao externa, use Ctrl+C no proprio terminal." "$command"
+  else
+    request_action "$1" privilege-required external \
+      "Instalar pacotes exige privilegio de administrador. Use uma conta com sudo disponivel e verifique de novo."
+  fi
   result action_required "privilegio de administrador necessario"
 }
 
