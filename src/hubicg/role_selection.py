@@ -8,11 +8,14 @@ import unicodedata
 from dataclasses import dataclass
 from typing import Any
 
+from .role_schema import role_text
+
 FILTER_NAMES = {
     "source": "source", "fonte": "source", "origen": "source",
     "lang": "locale", "language": "locale", "idioma": "locale",
     "tag": "tag", "etiqueta": "tag",
     "cap": "capability", "capability": "capability", "capacidade": "capability",
+    "foundation": "foundation", "fundamento": "foundation",
 }
 SOURCE_PRIORITY = {"custom": 3, "project": 2, "official": 1}
 
@@ -33,7 +36,7 @@ class Query:
 
 
 def parse_query(value: str) -> Query:
-    filters: dict[str, list[str]] = {"source": [], "locale": [], "tag": [], "capability": []}
+    filters: dict[str, list[str]] = {"source": [], "locale": [], "tag": [], "capability": [], "foundation": []}
     free: list[str] = []
     try:
         parts = shlex.split(value)
@@ -65,6 +68,8 @@ def _passes(payload: dict[str, Any], query: Query) -> bool:
         return False
     if query.filters.get("capability") and not set(query.filters["capability"]).issubset(_values(payload, "capabilities")):
         return False
+    if query.filters.get("foundation") and not set(query.filters["foundation"]).issubset(_values(payload, "foundations")):
+        return False
     return True
 
 
@@ -75,7 +80,7 @@ def _score(payload: dict[str, Any], query: Query) -> tuple[int, list[str]]:
     fields = {
         "id": normalized(str(payload.get("id", ""))),
         "name": normalized(str(payload.get("name", ""))),
-        "instructions": normalized(str(payload.get("instructions", ""))),
+        "instructions": normalized(role_text(payload)),
         "tags": " ".join(_values(payload, "tags")),
         "capabilities": " ".join(_values(payload, "capabilities")),
     }

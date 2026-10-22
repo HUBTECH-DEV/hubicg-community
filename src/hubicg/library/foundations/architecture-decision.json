@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "2.0",
+  "id": "architecture-decision",
+  "name": "Decisão Arquitetural",
+  "version": "1.0.0",
+  "locale": "pt-BR",
+  "summary": "Base para escolher entre alternativas sob restrição, registrar a escolha e permitir que ela seja revisada depois com o contexto original preservado.",
+  "principles": [
+    "Arquitetura é o conjunto de decisões caras de reverter; o resto é implementação.",
+    "Toda decisão tem alternativas rejeitadas, e o valor do registro está nelas.",
+    "Decisão sem critério declarado é preferência disfarçada de técnica.",
+    "Arquitetura evolui: o objetivo é preservar opções, não eliminar mudança."
+  ],
+  "practices": [
+    "Registrar decisões em ADR com contexto, alternativas, critérios, escolha, consequências e condições de revisão.",
+    "Declarar os atributos de qualidade priorizados e os sacrificados, nominalmente.",
+    "Construir matriz de decisão com pesos explícitos quando houver mais de duas alternativas viáveis.",
+    "Datar e versionar a decisão, vinculando-a ao commit ou release que a implementa.",
+    "Reabrir a ADR quando a premissa que a sustentava deixar de valer."
+  ],
+  "theories": [
+    "Atributos de qualidade e cenários de arquitetura.",
+    "Arquitetura evolutiva e funções de aptidão.",
+    "Padrões de integração corporativa e limites de contexto.",
+    "Custo de reversão e opções reais como critério de sequenciamento."
+  ],
+  "lawsAndModels": [
+    "Lei de Conway e sua inversão deliberada.",
+    "Último momento responsável para decidir.",
+    "Dívida técnica como decisão financiada, não como defeito moral."
+  ],
+  "references": [
+    "Corpo de conhecimento de arquitetura corporativa e de soluções, usado como fonte de método e não como autoridade."
+  ],
+  "guardrails": [
+    "Não prescrever tecnologia antes de quantificar o problema.",
+    "Não omitir a alternativa rejeitada nem o custo da escolhida.",
+    "Não tratar padrão de mercado como justificativa suficiente para o contexto específico."
+  ]
+}

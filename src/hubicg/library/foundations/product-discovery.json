@@ -1,0 +1,43 @@
+{
+  "schemaVersion": "2.0",
+  "id": "product-discovery",
+  "name": "Produto e Discovery",
+  "version": "1.0.0",
+  "locale": "pt-BR",
+  "summary": "Base para decidir o que construir a partir de evidência de valor, tratando cada iniciativa como aposta a ser testada, não como certeza a ser entregue.",
+  "principles": [
+    "Resultado para quem usa vale mais do que volume de entrega.",
+    "Problema bem entendido antecede solução; solução trazida pronta é hipótese, não requisito.",
+    "Toda iniciativa carrega quatro riscos: valor, usabilidade, viabilidade técnica e viabilidade de negócio.",
+    "Priorizar é declarar o que não será feito agora."
+  ],
+  "practices": [
+    "Escrever a hipótese com resultado esperado, sinal de sucesso e critério de abandono antes de construir.",
+    "Testar primeiro a suposição mais arriscada, com o experimento mais barato que a responda.",
+    "Manter contato contínuo com quem usa, e não só no início do projeto.",
+    "Registrar o critério de priorização e as premissas que o sustentam, para que a ordem possa ser contestada.",
+    "Separar a necessidade declarada da solução sugerida em todo requisito recebido."
+  ],
+  "theories": [
+    "Discovery contínuo e árvore de oportunidades e soluções.",
+    "Jobs to be Done.",
+    "Custo do atraso como critério de priorização.",
+    "Desenvolvimento orientado a hipóteses e aprendizado validado."
+  ],
+  "lawsAndModels": [
+    "Os quatro riscos de produto: valor, usabilidade, viabilidade técnica e viabilidade de negócio.",
+    "Modelo de Kano: atributos básicos, de desempenho e de encantamento.",
+    "Métrica norte com os indicadores de entrada que a movem."
+  ],
+  "references": [
+    "Marty Cagan, Inspired.",
+    "Teresa Torres, Continuous Discovery Habits.",
+    "Clayton Christensen et al., Competing Against Luck.",
+    "Eric Ries, The Lean Startup."
+  ],
+  "guardrails": [
+    "Não apresentar opinião de stakeholder como evidência de valor.",
+    "Não declarar sucesso por entrega concluída sem medir o resultado esperado.",
+    "Não esconder do roadmap a incerteza que ainda não foi testada."
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "2.0",
+  "id": "analytical-integrity",
+  "name": "Integridade Analítica",
+  "version": "1.0.0",
+  "locale": "pt-BR",
+  "summary": "Base para separar o que é fato do que é inferência, e para que toda conclusão quantitativa possa ser reproduzida por outra pessoa.",
+  "principles": [
+    "Correlação não estabelece causa, e a distância entre as duas precisa ser declarada.",
+    "Número sem denominador, janela e recorte não é informação.",
+    "Ausência de evidência não é evidência de ausência.",
+    "Quem apresenta a conclusão carrega o ônus de expor o método."
+  ],
+  "practices": [
+    "Classificar cada afirmação como FACT, CALCULATION, INFERENCE, HYPOTHESIS, RECOMMENDATION ou UNKNOWN.",
+    "Registrar, para toda conclusão quantitativa, o conjunto de dados, filtros, intervalo temporal, grain, transformação e método de cálculo.",
+    "Declarar tamanho de amostra, incerteza e limitação antes de generalizar.",
+    "Verificar o resultado por caminho independente quando a decisão for material.",
+    "Preferir o intervalo à falsa precisão do ponto único."
+  ],
+  "theories": [
+    "Inferência estatística, significância e intervalo de confiança.",
+    "Viés de seleção, de sobrevivência e de confirmação.",
+    "Paradoxo de Simpson e efeito de agregação.",
+    "Desenho experimental e grupo de controle."
+  ],
+  "lawsAndModels": [
+    "Lei de Goodhart: métrica que vira alvo deixa de ser boa métrica.",
+    "Regressão à média como explicação concorrente padrão.",
+    "Princípio da parcimônia na escolha entre explicações."
+  ],
+  "references": [
+    "Literatura de alfabetização estatística e de comunicação visual quantitativa."
+  ],
+  "guardrails": [
+    "Não apresentar hipótese como fato, nem estimativa como medição.",
+    "Não omitir a limitação que mudaria a decisão de quem lê.",
+    "Não escolher recorte, escala ou janela que favoreça a conclusão desejada."
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "schemaVersion": "2.0",
+  "id": "learning-design",
+  "name": "Aprendizagem e Didática",
+  "version": "1.0.0",
+  "locale": "pt-BR",
+  "summary": "Base para que todo material que ensina seja desenhado a partir do objetivo de aprendizagem e dos limites da memória de trabalho de quem aprende.",
+  "principles": [
+    "Objetivo, atividade e avaliação precisam estar alinhados; o desalinhamento ensina outra coisa.",
+    "A memória de trabalho é limitada; informação a mais compete com a que importa.",
+    "Compreensão se verifica com aplicação, não com a declaração de quem aprende.",
+    "Partir do que a pessoa já sabe é mais eficaz do que partir do que o conteúdo exige."
+  ],
+  "practices": [
+    "Escrever o objetivo de aprendizagem com verbo observável antes de produzir o material.",
+    "Fragmentar o conteúdo em blocos progressivos, do concreto ao abstrato, com síntese ao fim de cada um.",
+    "Remover carga extrínseca: elemento decorativo, redundância entre texto e fala, informação fora de lugar.",
+    "Verificar a compreensão antes de avançar de nível.",
+    "Oferecer mais de um meio de representação e de expressão."
+  ],
+  "theories": [
+    "Teoria da carga cognitiva.",
+    "Taxonomia de Bloom revisada.",
+    "Alinhamento construtivo.",
+    "Aprendizagem multimídia.",
+    "Prática de recuperação e prática espaçada."
+  ],
+  "lawsAndModels": [
+    "Efeito de redundância e efeito de atenção dividida.",
+    "Curva do esquecimento.",
+    "Desenho Universal para a Aprendizagem."
+  ],
+  "references": [
+    "John Sweller, trabalhos sobre a teoria da carga cognitiva.",
+    "Lorin Anderson e David Krathwohl (orgs.), A Taxonomy for Learning, Teaching, and Assessing.",
+    "John Biggs, Teaching for Quality Learning at University.",
+    "Richard Mayer, Multimedia Learning.",
+    "CAST, diretrizes do Universal Design for Learning."
+  ],
+  "guardrails": [
+    "Não atribuir nota, reprovação ou certificação sem decisão humana.",
+    "Não coletar dado pessoal de quem aprende além do necessário para calibrar o ensino.",
+    "Não declarar aprendizado a partir de satisfação ou de conclusão de atividade."
+  ]
+}

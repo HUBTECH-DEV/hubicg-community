@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "2.0",
+  "id": "data-quality-governance",
+  "name": "Qualidade e Governança de Dados",
+  "version": "1.0.0",
+  "locale": "pt-BR",
+  "summary": "Base para que dado tenha dono, contrato, significado estável e qualidade verificável ao longo do seu ciclo de vida.",
+  "principles": [
+    "Dado sem dono não tem qualidade: tem sorte.",
+    "Contrato de dado é interface entre times e deve quebrar de forma visível, não silenciosa.",
+    "Significado é parte do dado: métrica sem definição é número sem sentido.",
+    "Linhagem é pré-requisito de confiança, não enfeite de catálogo."
+  ],
+  "practices": [
+    "Definir contrato com esquema, grain, semântica, política de evolução e responsável nomeado.",
+    "Testar qualidade nas dimensões de completude, unicidade, validade, consistência, atualidade e acurácia.",
+    "Versionar esquema e declarar compatibilidade para frente e para trás antes de publicar mudança.",
+    "Registrar linhagem de origem a consumo, incluindo transformações intermediárias.",
+    "Reconciliar contra fonte autoritativa e publicar a divergência, em vez de escondê-la."
+  ],
+  "theories": [
+    "Dimensões de qualidade de dado e sua medição.",
+    "Modelagem dimensional e camada semântica.",
+    "Contratos de dado, evolução de esquema e compatibilidade.",
+    "Catálogo, glossário de negócio e administração de dado."
+  ],
+  "lawsAndModels": [
+    "Entra lixo, sai lixo, amplificado por cada camada de transformação a jusante.",
+    "Custo crescente de correção conforme o dado avança no fluxo."
+  ],
+  "references": [
+    "Corpo de conhecimento de gestão e modelagem de dados, aplicado ao contexto do domínio."
+  ],
+  "guardrails": [
+    "Não alterar esquema produtivo, contrato ou definição de métrica sem autorização humana explícita e aviso a consumidores.",
+    "Não excluir nem reprocessar carga crítica sem plano de recuperação testado.",
+    "Não publicar indicador sem definição, fonte e janela declaradas."
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "2.0",
+  "id": "security-privacy",
+  "name": "Segurança e Privacidade",
+  "version": "1.0.0",
+  "locale": "pt-BR",
+  "summary": "Base para tratar confidencialidade, integridade, disponibilidade e proteção de dados pessoais como requisito de projeto, não como revisão final.",
+  "principles": [
+    "Menor privilégio por padrão, ampliado apenas com justificativa e prazo.",
+    "Defesa em profundidade: nenhum controle único é suficiente.",
+    "Confiança não se herda da rede; ela se verifica a cada requisição.",
+    "Dado pessoal não coletado é o dado mais seguro que existe."
+  ],
+  "practices": [
+    "Modelar ameaça antes de implementar, identificando ativo, agente, superfície e impacto.",
+    "Classificar dado por sensibilidade e propagar a classificação por todo o fluxo.",
+    "Separar segredo de configuração e de código, com rotação e revogação previstas.",
+    "Minimizar coleta, limitar finalidade e definir retenção antes de armazenar dado pessoal.",
+    "Registrar acesso a dado sensível de forma auditável e à prova de adulteração."
+  ],
+  "theories": [
+    "Modelagem de ameaça e superfície de ataque.",
+    "Zero Trust e verificação contínua de identidade e postura.",
+    "Criptografia em trânsito, em repouso e em uso, com gestão de chave como parte do desenho.",
+    "Privacidade desde a concepção e por padrão."
+  ],
+  "lawsAndModels": [
+    "Princípios OWASP para risco em aplicação.",
+    "Funções do NIST Cybersecurity Framework como estrutura de cobertura.",
+    "Bases legais e princípios de tratamento da LGPD."
+  ],
+  "references": [
+    "Padrões públicos de segurança de aplicação e de gestão de risco, aplicados ao contexto e não copiados."
+  ],
+  "guardrails": [
+    "Nunca expor, registrar, ecoar ou commitar credencial, segredo, token ou dado pessoal.",
+    "Não afirmar conformidade legal: descrever controles implementados e deixar o parecer para quem tem competência jurídica.",
+    "Não desabilitar controle de segurança para destravar entrega sem autorização humana explícita e registro do risco aceito."
+  ]
+}

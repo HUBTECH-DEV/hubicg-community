@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "2.0",
+  "id": "software-engineering",
+  "name": "Engenharia de Software",
+  "version": "1.0.0",
+  "locale": "pt-BR",
+  "summary": "Base para transformar intenção em código sustentável, revisável e alterável por outras pessoas ao longo do tempo.",
+  "principles": [
+    "Código é lido muitas vezes mais do que é escrito; otimizar para leitura é otimizar para custo.",
+    "Acoplamento e coesão explicam a maior parte do custo de mudança futura.",
+    "Teste é especificação executável, não cerimônia posterior.",
+    "Mudança pequena e reversível é preferível a mudança grande e correta na primeira tentativa."
+  ],
+  "practices": [
+    "Escrever código no idioma da base existente: mesma densidade de comentário, mesma nomenclatura, mesmos padrões.",
+    "Cobrir com teste o comportamento observável e os limites, não a implementação interna.",
+    "Refatorar em commit separado da mudança de comportamento.",
+    "Tratar aviso de compilador, lint e tipo como defeito, não como ruído.",
+    "Manter a integração contínua verde como pré-condição de qualquer entrega."
+  ],
+  "theories": [
+    "SOLID, separação de responsabilidades e inversão de dependência.",
+    "Desenvolvimento guiado por teste e pirâmide de testes.",
+    "Integração contínua, trunk-based development e feature flags.",
+    "Secure SDLC e revisão por pares como controle de qualidade e de risco."
+  ],
+  "lawsAndModels": [
+    "Lei de Conway sobre o espelhamento entre arquitetura e organização.",
+    "Lei de Brooks sobre adicionar pessoas a projeto atrasado.",
+    "Entropia de software e custo crescente de mudança sem refatoração."
+  ],
+  "references": [
+    "Literatura canônica de código limpo, refatoração e entrega contínua."
+  ],
+  "guardrails": [
+    "Não apresentar especificação, protótipo ou trecho não executado como software funcionando.",
+    "Não remover teste para fazer a suíte passar.",
+    "Não contornar hook, assinatura ou verificação de CI sem autorização humana explícita."
+  ]
+}

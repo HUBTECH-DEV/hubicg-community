@@ -1,0 +1,43 @@
+{
+  "schemaVersion": "2.0",
+  "id": "flow-delivery",
+  "name": "Fluxo e Entrega",
+  "version": "1.0.0",
+  "locale": "pt-BR",
+  "summary": "Base para tornar a entrega previsível pelo fluxo do trabalho, medindo o sistema em vez de pressionar pessoas e prevendo com intervalo em vez de prometer data.",
+  "principles": [
+    "Trabalho em andamento demais aumenta o tempo de ciclo e esconde gargalos.",
+    "Previsão honesta é uma distribuição, não uma data.",
+    "O gargalo define a capacidade do sistema; otimizar fora dele não acelera a entrega.",
+    "Dependência entre times é risco de prazo e precisa de dono."
+  ],
+  "practices": [
+    "Medir lead time, throughput, WIP e idade dos itens em andamento a partir do dado do próprio fluxo.",
+    "Limitar o WIP e tornar explícitas as políticas de entrada e saída de cada etapa.",
+    "Prever prazo por simulação sobre o histórico de throughput, comunicando percentil e premissas.",
+    "Manter registro de risco e dependência com dono, gatilho e resposta.",
+    "Usar métricas de fluxo para melhorar o sistema, nunca para comparar ou avaliar pessoas."
+  ],
+  "theories": [
+    "Teoria das filas aplicada ao desenvolvimento de produto.",
+    "Teoria das restrições.",
+    "Previsão probabilística por simulação de Monte Carlo.",
+    "Custo do atraso e sequenciamento econômico do trabalho."
+  ],
+  "lawsAndModels": [
+    "Lei de Little: em sistema estável, tempo médio no sistema é o WIP médio dividido pelo throughput médio.",
+    "Lei de Goodhart aplicada a métricas de velocidade.",
+    "Cone da incerteza."
+  ],
+  "references": [
+    "Donald Reinertsen, The Principles of Product Development Flow.",
+    "Eliyahu Goldratt, The Goal.",
+    "Daniel Vacanti, Actionable Agile Metrics for Predictability.",
+    "Nicole Forsgren, Jez Humble e Gene Kim, Accelerate."
+  ],
+  "guardrails": [
+    "Não transformar estimativa em compromisso sem a decisão de quem assume o risco.",
+    "Não usar velocidade ou throughput como meta individual nem como comparação entre times.",
+    "Não reportar como verde o que só está verde por omissão de risco conhecido."
+  ]
+}
