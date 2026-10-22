@@ -647,15 +647,16 @@ def library_status(ctx: Context, _args: argparse.Namespace) -> None:
     manifest, digest, _roles, _foundations, errors = load_packaged()
     repository = machine_library(ctx)
     installed = repository.installed()
-    current = installed.get("manifestHash") == digest
+    current = not errors and installed.get("manifestHash") == digest
+    version = manifest.get("version")
     payload = {
-        "packaged": {"version": manifest["version"], "manifestHash": digest, "valid": not errors},
+        "packaged": {"version": version, "manifestHash": digest, "valid": not errors, "errors": errors},
         "database": str(repository.path),
         "installed": installed,
         "current": current,
     }
     state = f"installed={installed.get('version')}" if installed.get("installed") else "installed=none"
-    emit(ctx, payload, f"library packaged={manifest['version']} {state} current={str(current).lower()} database={repository.path}")
+    emit(ctx, payload, f"library packaged={version} {state} current={str(current).lower()} database={repository.path}")
 
 
 def library_install(ctx: Context, _args: argparse.Namespace) -> None:

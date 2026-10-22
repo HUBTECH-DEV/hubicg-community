@@ -3,13 +3,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
-    "area": {"maxLength": 2000, "minLength": 1, "type": "string"},
+    "area": {"maxLength": 2000, "minLength": 1, "pattern": "\\S", "type": "string"},
     "blocks": {
       "items": {
         "additionalProperties": false,
         "properties": {
-          "body": {"maxLength": 20000, "minLength": 1, "type": "string"},
-          "heading": {"maxLength": 200, "minLength": 1, "type": "string"}
+          "body": {"maxLength": 20000, "minLength": 1, "pattern": "\\S", "type": "string"},
+          "heading": {"maxLength": 200, "minLength": 1, "pattern": "\\S", "type": "string"}
         },
         "required": ["heading", "body"],
         "type": "object"
@@ -39,16 +39,16 @@
       "uniqueItems": true
     },
     "id": {"pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$", "type": "string"},
-    "lead": {"maxLength": 2000, "minLength": 1, "type": "string"},
+    "lead": {"maxLength": 2000, "minLength": 1, "pattern": "\\S", "type": "string"},
     "locale": {"pattern": "^(?:und|[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*)$", "type": "string"},
-    "name": {"maxLength": 120, "minLength": 1, "type": "string"},
+    "name": {"maxLength": 120, "minLength": 1, "pattern": "\\S", "type": "string"},
     "proficiency": {
       "items": {
         "additionalProperties": false,
         "properties": {
           "level": {"enum": ["P0", "P1", "P2", "P3", "P4"]},
-          "scope": {"maxLength": 2000, "minLength": 1, "type": "string"},
-          "tool": {"maxLength": 200, "minLength": 1, "type": "string"}
+          "scope": {"maxLength": 2000, "minLength": 1, "pattern": "\\S", "type": "string"},
+          "tool": {"maxLength": 200, "minLength": 1, "pattern": "\\S", "type": "string"}
         },
         "required": ["tool", "level", "scope"],
         "type": "object"
@@ -59,8 +59,8 @@
     },
     "roleVersion": {"pattern": "^[0-9]+(?:\\.[0-9]+){0,2}$", "type": "string"},
     "schemaVersion": {"const": "2.0"},
-    "section": {"maxLength": 2000, "minLength": 1, "type": "string"},
-    "seniority": {"maxLength": 2000, "minLength": 1, "type": "string"},
+    "section": {"maxLength": 2000, "minLength": 1, "pattern": "\\S", "type": "string"},
+    "seniority": {"maxLength": 2000, "minLength": 1, "pattern": "\\S", "type": "string"},
     "specializations": {
       "items": {"pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$", "type": "string"},
       "maxItems": 64,

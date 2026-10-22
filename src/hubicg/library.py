@@ -71,24 +71,42 @@ def load_packaged() -> tuple[dict[str, Any], str, list[dict[str, Any]], list[dic
     foundation that the library does not ship.
     """
     root = _packaged()
-    manifest_bytes = (root / "manifest.json").read_bytes()
-    manifest = json.loads(manifest_bytes.decode("utf-8"))
+    try:
+        manifest_bytes = (root / "manifest.json").read_bytes()
+        manifest = json.loads(manifest_bytes.decode("utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        return {}, "", [], [], [f"manifest.json: unreadable: {error}"]
+    if not isinstance(manifest, dict) or not isinstance(manifest.get("version"), str):
+        return {}, "", [], [], ["manifest.json: must be an object with a version"]
     errors: list[str] = []
     loaded: dict[str, list[dict[str, Any]]] = {"roles": [], "foundations": []}
     validators = {"roles": validate_role, "foundations": validate_foundation}
     for kind in ("foundations", "roles"):
         entries = manifest.get(kind, [])
-        if manifest.get("counts", {}).get(kind) != len(entries):
+        if not isinstance(entries, list) or manifest.get("counts", {}).get(kind) != len(entries):
             errors.append(f"{kind}: manifest count does not match its entries")
+            continue
         for entry in entries:
-            payload = (root / entry["path"]).read_bytes()
+            if not isinstance(entry, dict) or not all(isinstance(entry.get(key), str) for key in ("id", "path", "sha256")):
+                errors.append(f"{kind}: manifest entry needs id, path and sha256")
+                continue
+            try:
+                payload = (root / entry["path"]).read_bytes()
+            except OSError as error:
+                errors.append(f"{entry['path']}: unreadable: {error}")
+                continue
             if hashlib.sha256(payload).hexdigest() != entry["sha256"]:
                 errors.append(f"{entry['path']}: checksum mismatch")
                 continue
-            data = json.loads(payload.decode("utf-8"))
+            try:
+                data = json.loads(payload.decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError) as error:
+                errors.append(f"{entry['path']}: invalid JSON: {error}")
+                continue
             errors += [f"{entry['path']}: {error}" for error in validators[kind](data)]
-            if data.get("id") != entry["id"]:
+            if not isinstance(data, dict) or data.get("id") != entry["id"]:
                 errors.append(f"{entry['path']}: id does not match the manifest")
+                continue
             loaded[kind].append(data)
     known = {foundation["id"] for foundation in loaded["foundations"]}
     for role in loaded["roles"]:

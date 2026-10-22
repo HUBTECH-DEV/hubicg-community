@@ -1,7 +1,9 @@
 """Packaged role library, role-v2 contract and the machine-wide database."""
 
+import hashlib
 import json
 import os
+import re
 import sqlite3
 import subprocess
 import sys
@@ -9,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from hubicg import library
+from hubicg import cli, library
 from hubicg.adapters.claude_code import render_subagent
 from hubicg.role_schema import role_text, validate_foundation, validate_role
 
@@ -73,11 +75,76 @@ def test_role_v2_contract_is_enforced() -> None:
     assert validate_role({**v2_role(), "schemaVersion": "3.0"})
 
 
-def test_validator_accepts_every_role_the_public_schema_accepts() -> None:
-    # The schema bounds each block, not their sum; the validator must not add
-    # an undeclared aggregate limit and refuse a role the contract allows.
-    large = v2_role(blocks=[{"heading": f"Part {index}", "body": "x" * 20_000} for index in range(6)])
-    assert validate_role(large) == []
+def schema_accepts(value: object, schema: dict) -> bool:
+    """Evaluate the JSON Schema keywords the public role schemas use.
+
+    A deliberately small evaluator, so parity is tested without adding a
+    dependency; an unsupported keyword fails loudly instead of passing.
+    """
+    supported = {
+        "$id", "$schema", "title", "type", "properties", "required", "additionalProperties",
+        "items", "minItems", "maxItems", "uniqueItems", "minLength", "maxLength", "pattern",
+        "enum", "const",
+    }
+    assert set(schema) <= supported, set(schema) - supported
+    if "const" in schema and value != schema["const"]:
+        return False
+    if "enum" in schema and value not in schema["enum"]:
+        return False
+    kind = schema.get("type")
+    if kind == "string":
+        if not isinstance(value, str) or len(value) < schema.get("minLength", 0):
+            return False
+        if len(value) > schema.get("maxLength", len(value)):
+            return False
+        return "pattern" not in schema or re.search(schema["pattern"], value) is not None
+    if kind == "array":
+        if not isinstance(value, list) or not schema.get("minItems", 0) <= len(value) <= schema.get("maxItems", len(value)):
+            return False
+        if schema.get("uniqueItems") and len({json.dumps(item, sort_keys=True) for item in value}) != len(value):
+            return False
+        return all(schema_accepts(item, schema["items"]) for item in value)
+    if kind == "object":
+        if not isinstance(value, dict) or not set(schema.get("required", [])) <= set(value):
+            return False
+        if schema.get("additionalProperties") is False and set(value) - set(schema["properties"]):
+            return False
+        return all(schema_accepts(value[key], schema["properties"][key]) for key in value if key in schema["properties"])
+    return True
+
+
+ROLE_CASES = {
+    "valid": v2_role(),
+    "aggregate-over-100k": v2_role(blocks=[{"heading": f"Part {i}", "body": "x" * 20_000} for i in range(6)]),
+    "blank-body": v2_role(blocks=[{"heading": "H", "body": " "}]),
+    "empty-body": v2_role(blocks=[{"heading": "H", "body": ""}]),
+    "block-too-long": v2_role(blocks=[{"heading": "H", "body": "x" * 20_001}]),
+    "blank-name": v2_role(name="  "),
+    "blank-scope": v2_role(proficiency=[{"tool": "T", "level": "P2", "scope": "\t"}]),
+    "bad-level": v2_role(proficiency=[{"tool": "T", "level": "P5", "scope": "s"}]),
+    "no-foundations": v2_role(foundations=[]),
+    "duplicate-foundation": v2_role(foundations=["a", "a"]),
+    "blank-lead": v2_role(lead=" "),
+    "unknown-field": v2_role(instructions="x"),
+}
+
+
+@pytest.mark.parametrize("case", sorted(ROLE_CASES))
+def test_role_validator_and_public_schema_agree(case: str) -> None:
+    schema = json.loads((ROOT / "schemas" / "role-v2.schema.json").read_text(encoding="utf-8"))
+    role = ROLE_CASES[case]
+    assert (validate_role(role) == []) == schema_accepts(role, schema)
+
+
+@pytest.mark.parametrize("field,value", [
+    ("summary", " "), ("summary", ""), ("principles", [" "]), ("principles", []),
+    ("references", ["ok", "  "]), ("name", "x" * 121), ("theories", ["fine"]),
+])
+def test_foundation_validator_and_public_schema_agree(field: str, value: object) -> None:
+    schema = json.loads((ROOT / "schemas" / "foundation.schema.json").read_text(encoding="utf-8"))
+    foundation = json.loads((LIBRARY / "foundations" / "research-evidence.json").read_text(encoding="utf-8"))
+    foundation[field] = value
+    assert (validate_foundation(foundation) == []) == schema_accepts(foundation, schema)
 
 
 def test_role_v1_is_still_accepted() -> None:
@@ -114,6 +181,43 @@ def test_tampered_library_is_refused(tmp_path: Path, monkeypatch: pytest.MonkeyP
     tampered.write_bytes(tampered.read_bytes().replace(b"Scrum", b"Scrum!", 1))
     monkeypatch.setattr(library, "_packaged", lambda: copy)
     assert any("checksum mismatch" in error for error in library.load_packaged()[4])
+
+
+def broken_copy(tmp_path: Path, breakage: str) -> Path:
+    copy = tmp_path / "library"
+    for path in LIBRARY.rglob("*.json"):
+        target = copy / path.relative_to(LIBRARY)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(path.read_bytes())
+    manifest_path = copy / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if breakage == "missing-file":
+        (copy / manifest["roles"][0]["path"]).unlink()
+    elif breakage == "entry-without-path":
+        del manifest["roles"][0]["path"]
+    elif breakage == "invalid-json":
+        entry = manifest["roles"][0]
+        (copy / entry["path"]).write_bytes(b"{not json")
+        entry["sha256"] = hashlib.sha256(b"{not json").hexdigest()
+    elif breakage == "unreadable-manifest":
+        manifest_path.write_bytes(b"\xff")
+        return copy
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    return copy
+
+
+@pytest.mark.parametrize("breakage", ["missing-file", "entry-without-path", "invalid-json", "unreadable-manifest"])
+def test_broken_library_is_an_integrity_error_not_a_crash(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], breakage: str,
+) -> None:
+    monkeypatch.setattr(library, "_packaged", lambda: broken_copy(tmp_path, breakage))
+    assert library.load_packaged()[4], "a broken library must report errors"
+    with pytest.raises(SystemExit) as raised:
+        cli.main(["--root", str(project(tmp_path / "p")), "--home", str(tmp_path / "h"), "--json", "library", "install"])
+    assert raised.value.code == 1
+    error = json.loads(capsys.readouterr().err)
+    assert error["status"] == "error" and error["exitCode"] == 1
+    assert not (tmp_path / "h" / "library.db").exists()
 
 
 def test_install_is_idempotent_and_links_foundations_through_json(tmp_path: Path) -> None:
