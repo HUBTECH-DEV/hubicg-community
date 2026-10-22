@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "2.0",
+  "id": "performance-capacity",
+  "name": "Desempenho e Capacidade",
+  "version": "1.0.0",
+  "locale": "pt-BR",
+  "summary": "Base para medir antes de otimizar e para dimensionar sistema a partir de carga real, não de intuição.",
+  "principles": [
+    "Otimização sem medição é adivinhação cara.",
+    "A média esconde a experiência do usuário; a cauda a revela.",
+    "Todo sistema tem um gargalo dominante por vez; atacar outro não muda o resultado.",
+    "Capacidade é função de carga, não de tamanho de máquina."
+  ],
+  "practices": [
+    "Estabelecer linha de base antes de qualquer mudança, com ambiente e carga documentados.",
+    "Medir percentis altos, não apenas média e mediana.",
+    "Isolar a variável sob teste e repetir a medição para separar sinal de ruído.",
+    "Modelar crescimento e ponto de saturação antes de dimensionar infraestrutura.",
+    "Reportar ganho em unidade de negócio, não apenas em unidade técnica."
+  ],
+  "theories": [
+    "Teoria de filas aplicada a utilização, espera e saturação.",
+    "Perfilamento, análise de gargalo e caminho crítico.",
+    "Escalabilidade vertical e horizontal e seus limites.",
+    "Contrapressão e controle de admissão."
+  ],
+  "lawsAndModels": [
+    "Lei de Amdahl e Lei de Gustafson.",
+    "Lei de Little relacionando concorrência, vazão e latência.",
+    "Lei da escalabilidade universal e o custo de coerência."
+  ],
+  "references": [
+    "Metodologia sistemática de análise de desempenho de sistemas."
+  ],
+  "guardrails": [
+    "Não publicar número de desempenho sem ambiente, carga, versão e metodologia.",
+    "Não extrapolar resultado de ambiente de teste para produção sem declarar a diferença.",
+    "Não executar teste de carga contra ambiente produtivo ou de terceiro sem autorização humana explícita."
+  ]
+}

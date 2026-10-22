@@ -18,8 +18,9 @@ from typing import Any
 from .adapters.claude_code import find_conflicts, parse_marker, render_subagent
 from .change_evidence import record_claude_code_export, record_config_change, verify_events
 from .filenames import load_policy, repository_paths, validate_paths
-from .role_schema import validate_role
-from .role_selection import select_roles
+from .library import LibraryRepository, database_path, load_packaged, machine_home
+from .role_schema import role_text, validate_role
+from .role_selection import SOURCE_PRIORITY, select_roles
 from .role_store import RoleRecord, SQLiteRoleRepository
 
 EXIT_INVALID, EXIT_USAGE, EXIT_APPROVAL, EXIT_EXTERNAL = 1, 2, 3, 4
@@ -35,6 +36,7 @@ class HubICGError(RuntimeError):
 class Context:
     root: Path
     as_json: bool
+    home: str | None = None
 
     @property
     def state(self) -> Path:
@@ -230,7 +232,7 @@ def roles_search(ctx: Context, args: argparse.Namespace) -> None:
         candidates = []
         for path in role_files(ctx):
             data = read_json(path)
-            searchable = f"{data.get('id', '')} {data.get('name', '')} {data.get('instructions', '')}".casefold()
+            searchable = f"{data.get('id', '')} {data.get('name', '')} {role_text(data)}".casefold()
             score = sum(searchable.count(token) for token in tokens)
             if score:
                 candidates.append((score, data))
@@ -240,8 +242,18 @@ def roles_search(ctx: Context, args: argparse.Namespace) -> None:
             for _, data in candidates[:args.limit]
         ]
         engine = "files"
+    payload: dict[str, Any] = {"query": args.query, "engine": engine, "roles": roles}
+    library = installed_library(ctx)
+    if library is not None:
+        # Every local ID shadows the official role, even when the local role
+        # does not match this query: search must not announce a role that
+        # selection would never use.
+        shadowed = {str(item.get("id")) for item in local_role_payloads(ctx)}
+        records, payload["libraryEngine"] = library.search(args.query, args.limit + len(shadowed))
+        roles.extend(role_payload(record) for record in records if record.role_id not in shadowed)
+        del roles[args.limit:]
     human = "\n".join(f"{role['id']}\t{role['name']}\t{role['source']}" for role in roles) or "no roles"
-    emit(ctx, {"query": args.query, "engine": engine, "roles": roles}, human)
+    emit(ctx, payload, human)
 
 
 def local_role_payloads(ctx: Context) -> list[dict[str, Any]]:
@@ -259,8 +271,36 @@ def local_role_payloads(ctx: Context) -> list[dict[str, Any]]:
     return payloads
 
 
+def installed_library(ctx: Context) -> LibraryRepository | None:
+    """Return the machine library when it exists; selection never creates it."""
+    try:
+        path = database_path(machine_home(ctx.home))
+    except ValueError as error:
+        raise HubICGError(str(error)) from error
+    repository = LibraryRepository(path)
+    return repository if repository.installed().get("installed") else None
+
+
+def selectable_role_payloads(ctx: Context) -> list[dict[str, Any]]:
+    """Project roles plus the machine's official library, one entry per ID.
+
+    When the same ID exists in both, the higher source wins (``custom`` over
+    ``project`` over ``official``), the same precedence selection applies.
+    """
+    chosen: dict[str, dict[str, Any]] = {}
+    library = installed_library(ctx)
+    payloads = local_role_payloads(ctx) + (library.payloads() if library else [])
+    for payload in payloads:
+        role_id = str(payload.get("id"))
+        current = chosen.get(role_id)
+        rank = SOURCE_PRIORITY.get(str(payload.get("_source")), 0)
+        if current is None or rank > SOURCE_PRIORITY.get(str(current.get("_source")), 0):
+            chosen[role_id] = payload
+    return list(chosen.values())
+
+
 def roles_select(ctx: Context, args: argparse.Namespace) -> None:
-    payload = select_roles(local_role_payloads(ctx), args.query, args.count)
+    payload = select_roles(selectable_role_payloads(ctx), args.query, args.count)
     human = "\n".join(
         f"{role['id']}\t{role['name']}\t{role['source']}\tscore={role['score']}"
         for role in payload["selected"]
@@ -319,7 +359,12 @@ def roles_db_export(ctx: Context, _args: argparse.Namespace) -> None:
     for payload in local_role_payloads(ctx):
         roles.append({key: value for key, value in payload.items() if not key.startswith("_")})
     roles.sort(key=lambda item: (str(item.get("id", "")), str(item.get("version", ""))))
-    document = {"schemaVersion": "1.0", "roleSchemaVersion": "1.0", "roles": roles}
+    versions = sorted({str(role.get("schemaVersion")) for role in roles}) or ["1.0"]
+    document = {
+        "schemaVersion": "1.0",
+        "roleSchemaVersion": versions[0] if len(versions) == 1 else "mixed",
+        "roles": roles,
+    }
     digest = hashlib.sha256(canonical(document)).hexdigest()
     target = state_path(ctx, "exports", f"roles-{digest[:16]}.json")
     atomic_json(target, document)
@@ -574,9 +619,75 @@ def evidence_changes_verify(ctx: Context, _args: argparse.Namespace) -> None:
     emit(ctx, {"status": "valid", "events": count}, f"change_evidence=valid events={count}")
 
 
+def verified_library() -> tuple[dict[str, Any], str, list[dict[str, Any]], list[dict[str, Any]]]:
+    manifest, digest, roles, foundations, errors = load_packaged()
+    if errors:
+        raise HubICGError("; ".join(errors))
+    return manifest, digest, roles, foundations
+
+
+def machine_library(ctx: Context) -> LibraryRepository:
+    try:
+        return LibraryRepository(database_path(machine_home(ctx.home)))
+    except ValueError as error:
+        raise HubICGError(str(error)) from error
+
+
+def library_verify(ctx: Context, _args: argparse.Namespace) -> None:
+    manifest, digest, roles, foundations = verified_library()
+    emit(
+        ctx,
+        {"status": "valid", "version": manifest["version"], "manifestHash": digest,
+         "roles": len(roles), "foundations": len(foundations)},
+        f"library=valid version={manifest['version']} roles={len(roles)} foundations={len(foundations)}",
+    )
+
+
+def library_status(ctx: Context, _args: argparse.Namespace) -> None:
+    manifest, digest, _roles, _foundations, errors = load_packaged()
+    repository = machine_library(ctx)
+    installed = repository.installed()
+    current = not errors and installed.get("manifestHash") == digest
+    version = manifest.get("version")
+    payload = {
+        "packaged": {"version": version, "manifestHash": digest, "valid": not errors, "errors": errors},
+        "database": str(repository.path),
+        "installed": installed,
+        "current": current,
+    }
+    state = f"installed={installed.get('version')}" if installed.get("installed") else "installed=none"
+    emit(ctx, payload, f"library packaged={version} {state} current={str(current).lower()} database={repository.path}")
+
+
+def library_install(ctx: Context, _args: argparse.Namespace) -> None:
+    manifest, digest, roles, foundations = verified_library()
+    repository = machine_library(ctx)
+    try:
+        result = repository.install(manifest, digest, roles, foundations)
+    except (OSError, sqlite3.Error) as error:
+        raise HubICGError(f"cannot write the machine library at {repository.path}: {error}", EXIT_USAGE) from error
+    emit(
+        ctx,
+        {"status": "installed", "version": manifest["version"], "manifestHash": digest,
+         "database": str(repository.path), **result},
+        f"library=installed version={manifest['version']} roles={result['roles']} "
+        f"foundations={result['foundations']} database={repository.path}",
+    )
+
+
+def library_show(ctx: Context, args: argparse.Namespace) -> None:
+    library = installed_library(ctx)
+    shown = library.show(args.role_id) if library else None
+    if shown is None:
+        raise HubICGError(f"role not found in the installed library: {args.role_id}")
+    names = ", ".join(foundation["id"] for foundation in shown["foundations"]) or "none"
+    emit(ctx, shown, f"{shown['role']['id']}\t{shown['role']['name']}\tfoundations={names}")
+
+
 def build_parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(prog="hubicg")
     result.add_argument("--root", default=".", help="project root")
+    result.add_argument("--home", help="machine data directory (default: HUBICG_HOME or the platform user data directory)")
     result.add_argument("--json", action="store_true")
     commands = result.add_subparsers(dest="command", required=True)
     commands.add_parser("validate").set_defaults(handler=validate)
@@ -603,6 +714,13 @@ def build_parser() -> argparse.ArgumentParser:
     role_import = role_db.add_parser("import")
     role_import.add_argument("--source", choices=("custom", "project", "official"), default="project")
     role_import.set_defaults(handler=roles_db_import)
+    library = commands.add_parser("library").add_subparsers(dest="library_command", required=True)
+    library.add_parser("verify").set_defaults(handler=library_verify)
+    library.add_parser("status").set_defaults(handler=library_status)
+    library.add_parser("install").set_defaults(handler=library_install)
+    library_show_parser = library.add_parser("show")
+    library_show_parser.add_argument("role_id")
+    library_show_parser.set_defaults(handler=library_show)
     config = commands.add_parser("config").add_subparsers(dest="config_command", required=True)
     diff = config.add_parser("diff"); diff.add_argument("candidate"); diff.set_defaults(handler=config_diff)
     propose = config.add_parser("propose"); propose.add_argument("candidate"); propose.set_defaults(handler=config_propose)
@@ -630,7 +748,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
     try:
-        args.handler(Context(safe_root(args.root), args.json), args)
+        args.handler(Context(safe_root(args.root), args.json, args.home), args)
     except ValueError as error:
         message = {"status": "error", "error": str(error), "exitCode": EXIT_INVALID}
         print(json.dumps(message, ensure_ascii=False) if args.json else f"hubicg: {error}", file=sys.stderr)

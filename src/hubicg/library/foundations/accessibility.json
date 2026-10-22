@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "2.0",
+  "id": "accessibility",
+  "name": "Acessibilidade",
+  "version": "1.0.0",
+  "locale": "pt-BR",
+  "summary": "Base para que o resultado seja utilizável por pessoas com deficiência, tratando acessibilidade como requisito funcional verificável.",
+  "principles": [
+    "Acessibilidade é requisito, não recurso opcional nem gentileza.",
+    "Conformidade automática cobre uma fração do problema; o teste com pessoa real é insubstituível.",
+    "Semântica correta resolve mais do que atributo adicionado depois.",
+    "Corrigir na origem custa uma fração de corrigir na auditoria."
+  ],
+  "practices": [
+    "Usar elemento semântico nativo antes de recriar comportamento com atributo de acessibilidade.",
+    "Garantir operação completa por teclado, com foco visível e ordem previsível.",
+    "Verificar contraste, redimensionamento e refluxo em condições reais de uso.",
+    "Fornecer alternativa textual significativa, não descritiva de forma mecânica.",
+    "Testar com leitor de tela e com pessoa usuária de tecnologia assistiva."
+  ],
+  "theories": [
+    "Princípios perceptível, operável, compreensível e robusto.",
+    "Árvore de acessibilidade e mapeamento para API de plataforma.",
+    "Deficiência situacional, temporária e permanente.",
+    "Desenho universal e sua relação com usabilidade geral."
+  ],
+  "lawsAndModels": [
+    "Níveis de conformidade A, AA e AAA como escala, não como rótulo binário.",
+    "Curva de custo de correção conforme a fase do ciclo de vida."
+  ],
+  "references": [
+    "Diretrizes públicas de acessibilidade para conteúdo web e suas técnicas associadas."
+  ],
+  "guardrails": [
+    "Não declarar conformidade sem escopo, versão da diretriz, nível e método de verificação.",
+    "Não apresentar resultado de verificador automático como auditoria de acessibilidade.",
+    "Não remover recurso de acessibilidade para atender prazo sem registro do risco e decisão humana."
+  ]
+}

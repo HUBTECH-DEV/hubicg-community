@@ -16,6 +16,8 @@ import hashlib
 import re
 from typing import Any
 
+from ..role_schema import role_text
+
 FRONTMATTER = re.compile(r"\A---\n(?P<body>.*?)\n---\n", re.DOTALL)
 MARKER = re.compile(
     r"^# hubicg:managed role=(?P<role>[a-z0-9]+(?:-[a-z0-9]+)*) "
@@ -31,7 +33,7 @@ def content_hash(name: str, instructions: str) -> str:
 
 
 def render_subagent(role: dict[str, Any]) -> str:
-    """Render ``role`` (role schema v1) as Claude Code subagent markdown.
+    """Render ``role`` (role schema v1 or v2) as Claude Code subagent markdown.
 
     The provenance marker is a YAML comment inside the frontmatter, not a
     leading HTML comment: Claude Code (and most frontmatter parsers) require
@@ -43,9 +45,11 @@ def render_subagent(role: dict[str, Any]) -> str:
     """
     role_id = role["id"]
     name = role["name"]
-    instructions = role["instructions"]
-    version = role.get("version", "1")
-    description = ", ".join([*role.get("tags", []), *role.get("capabilities", [])]) or role_id
+    instructions = role_text(role)
+    version = role.get("roleVersion" if role.get("schemaVersion") == "2.0" else "version", "1")
+    # role-v2 has no tags or capabilities; its foundations are slugs too.
+    slugs = [*role.get("tags", []), *role.get("capabilities", []), *role.get("foundations", [])]
+    description = ", ".join(slugs) or role_id
     marker = (
         f"# hubicg:managed role={role_id} version={version} "
         f"hash={content_hash(name, instructions)}"

@@ -1,0 +1,42 @@
+{
+  "schemaVersion": "2.0",
+  "id": "language-communication",
+  "name": "Linguagem e Comunicação",
+  "version": "1.0.0",
+  "locale": "pt-BR",
+  "summary": "Base para que o texto seja compreendido pelo público pretendido, com variante, registro e terminologia declarados e consistentes.",
+  "principles": [
+    "Clareza é medida por quem lê, não por quem escreve.",
+    "Variante e registro são escolhas que mudam o sentido e precisam ser declaradas.",
+    "Termo técnico definido uma vez é usado sempre com o mesmo sentido.",
+    "Descrever o uso real da língua vem antes de prescrever a norma."
+  ],
+  "practices": [
+    "Declarar idioma, variante, registro e público antes de redigir ou adaptar.",
+    "Manter glossário de termos, siglas e pronúncias, com a fonte de cada decisão.",
+    "Usar frases curtas, voz ativa e uma ideia por parágrafo quando o objetivo for instruir.",
+    "Adaptar o sentido, e não só as palavras, ao passar entre variantes e idiomas.",
+    "Registrar transcrição fonética no Alfabeto Fonético Internacional, indicando se é ampla ou estreita."
+  ],
+  "theories": [
+    "Sociolinguística variacionista.",
+    "Teoria funcionalista da tradução (skopos).",
+    "Linguagem simples.",
+    "Fonética articulatória e fonologia."
+  ],
+  "lawsAndModels": [
+    "Alfabeto Fonético Internacional.",
+    "Princípio da cooperação de Grice."
+  ],
+  "references": [
+    "International Phonetic Association, Handbook of the International Phonetic Association.",
+    "ISO 24495-1:2023, Plain language — Part 1: Governing principles and guidelines.",
+    "William Labov, trabalhos de sociolinguística variacionista.",
+    "Katharina Reiss e Hans Vermeer, teoria do skopos."
+  ],
+  "guardrails": [
+    "Não inventar etimologia, pronúncia ou uso sem fonte, nem sem marcar como hipótese.",
+    "Não alterar o sentido de um texto ao simplificá-lo ou adaptá-lo sem decisão humana.",
+    "Não reproduzir a voz de pessoa identificável sem consentimento explícito."
+  ]
+}

@@ -41,7 +41,10 @@ with tempfile.TemporaryDirectory(prefix="hubicg-release-smoke-") as temporary:
          "--target", str(installed), str(wheels[0].resolve())],
         check=True, capture_output=True, text=True,
     )
-    isolated_environment = {**os.environ, "PYTHONPATH": str(installed), "PYTHONNOUSERSITE": "1"}
+    isolated_environment = {
+        **os.environ, "PYTHONPATH": str(installed), "PYTHONNOUSERSITE": "1",
+        "HUBICG_HOME": str(root / "machine"), "PYTHONIOENCODING": "utf-8",
+    }
 
     steps: list[str] = []
     def run(*command: str, as_json: bool = False, label: str | None = None) -> str:
@@ -49,7 +52,7 @@ with tempfile.TemporaryDirectory(prefix="hubicg-release-smoke-") as temporary:
         if as_json:
             prefix.append("--json")
         result = subprocess.run(
-            [*prefix, *command], check=True, capture_output=True, text=True,
+            [*prefix, *command], check=True, capture_output=True, text=True, encoding="utf-8",
             cwd=project, env=isolated_environment,
         )
         steps.append(label or " ".join(command))
@@ -77,11 +80,23 @@ with tempfile.TemporaryDirectory(prefix="hubicg-release-smoke-") as temporary:
     run("roles", "db", "export")
     run("status")
 
+    # The official library ships inside the wheel and installs per machine.
+    run("library", "verify")
+    library = json.loads(run("library", "install", as_json=True))
+    if (library["roles"], library["foundations"]) != (65, 17):
+        raise SystemExit(f"unexpected library install: {library}")
+    if not json.loads(run("library", "status", as_json=True))["current"]:
+        raise SystemExit("installed library does not match the packaged manifest")
+    shown = json.loads(run("library", "show", "principal-scrum-master", as_json=True))
+    if not shown["foundations"]:
+        raise SystemExit("installed library did not resolve foundations")
+
 report = {
     "schemaVersion": "1.0",
     "status": "passed",
     "wheel": wheels[0].name,
     "selectedRole": selection["selected"][0]["id"],
+    "library": {"version": library["version"], "roles": library["roles"], "foundations": library["foundations"]},
     "steps": steps,
 }
 args.output.parent.mkdir(parents=True, exist_ok=True)

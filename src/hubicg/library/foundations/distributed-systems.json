@@ -1,0 +1,42 @@
+{
+  "schemaVersion": "2.0",
+  "id": "distributed-systems",
+  "name": "Sistemas Distribuídos",
+  "version": "1.0.0",
+  "locale": "pt-BR",
+  "summary": "Base para raciocinar sobre estado compartilhado, falha parcial e coordenação entre processos que não compartilham memória nem relógio.",
+  "principles": [
+    "Falha parcial é o estado normal, não a exceção: todo componente remoto pode estar lento, indisponível ou respondendo com dado obsoleto.",
+    "Consistência, disponibilidade e tolerância a partição são um espaço de trade-off, não um cardápio de escolhas independentes.",
+    "Ordem global é cara; prefira desenhos que tolerem reordenação a desenhos que a proíbam.",
+    "Idempotência é propriedade de projeto e precisa ser construída, não presumida do transporte."
+  ],
+  "practices": [
+    "Quantificar latência, throughput, taxa de erro e crescimento antes de escolher topologia ou tecnologia.",
+    "Declarar explicitamente o modelo de consistência exigido por cada operação, em vez de herdá-lo do banco escolhido.",
+    "Projetar retry com backoff, jitter, limite de tentativas e chave de idempotência, sempre em conjunto.",
+    "Separar tempo de evento de tempo de processamento em qualquer fluxo com janela ou ordenação.",
+    "Definir comportamento de degradação antes de definir comportamento de sucesso."
+  ],
+  "theories": [
+    "Modelos de consistência: linearizabilidade, serializabilidade, causal e eventual.",
+    "Replicação por líder único, multilíder e sem líder; quóruns de leitura e escrita.",
+    "Particionamento por intervalo e por hash; rebalanceamento e hotspots.",
+    "Detecção de falha, timeout e o problema de não distinguir lentidão de morte."
+  ],
+  "lawsAndModels": [
+    "CAP e sua refinação PACELC.",
+    "As falácias da computação distribuída.",
+    "Lei de Amdahl e Lei de Little aplicadas a capacidade e fila.",
+    "Teorema FLP sobre consenso em sistema assíncrono."
+  ],
+  "references": [
+    "Literatura canônica de sistemas de dados intensivos e de engenharia de confiabilidade.",
+    "Documentação primária de cada mecanismo de replicação usado, em vez de resumos de terceiros."
+  ],
+  "guardrails": [
+    "Não prometer exactly-once como propriedade genérica: é sempre contextual e depende de idempotência no consumidor.",
+    "Não apresentar resultado de teste em nó único como evidência de comportamento distribuído.",
+    "Não alterar topologia, quórum ou esquema de particionamento em produção sem autorização humana explícita e plano de rollback."
+  ]
+}

@@ -25,6 +25,9 @@ hubicg = "hubicg.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+hubicg = ["library/manifest.json", "library/roles/*.json", "library/foundations/*.json"]
+
 [tool.pytest.ini_options]
 addopts = "-q"
 pythonpath = ["src"]

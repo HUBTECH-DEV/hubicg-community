@@ -8,11 +8,12 @@ import os
 import re
 import sqlite3
 import tempfile
+from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .role_schema import validate_role
+from .role_schema import role_text, validate_role
 
 SCHEMA_VERSION = 1
 
@@ -26,6 +27,50 @@ class RoleRecord:
     locale: str
     version: str
     content_hash: str
+
+
+def write_role(connection: sqlite3.Connection, payload: dict[str, Any], source: str) -> RoleRecord:
+    """Validate and write one role inside the caller's transaction.
+
+    Both contracts are stored the same way: the canonical JSON in
+    ``payload_json`` and, in ``instructions``, the text from ``role_text`` so
+    that FTS5 and the fallback search see ``role-v2`` blocks too.
+    """
+    if source not in {"custom", "project", "official"}:
+        raise ValueError(f"unsupported role source: {source}")
+    errors = validate_role(payload)
+    if errors:
+        raise ValueError("; ".join(errors))
+    role_id = str(payload["id"]).strip()
+    name = str(payload["name"]).strip()
+    instructions = role_text(payload).strip()
+    locale = str(payload.get("locale", "und")).strip() or "und"
+    version_field = "roleVersion" if payload.get("schemaVersion") == "2.0" else "version"
+    version = str(payload.get(version_field, "1")).strip() or "1"
+    canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    content_hash = hashlib.sha256((canonical + "\n").encode()).hexdigest()
+    record = RoleRecord(role_id, name, instructions, source, locale, version, content_hash)
+    tags = sorted({str(tag).strip().casefold() for tag in payload.get("tags", []) if str(tag).strip()})
+    connection.execute(
+        """INSERT INTO roles(role_id, name, instructions, source, locale, version, content_hash, payload_json)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(role_id) DO UPDATE SET
+             name=excluded.name, instructions=excluded.instructions, source=excluded.source,
+             locale=excluded.locale, version=excluded.version,
+             content_hash=excluded.content_hash, payload_json=excluded.payload_json""",
+        (role_id, name, instructions, source, locale, version, content_hash, canonical),
+    )
+    connection.execute("DELETE FROM role_tags WHERE role_id = ?", (role_id,))
+    connection.executemany("INSERT INTO role_tags(role_id, tag) VALUES (?, ?)", ((role_id, tag) for tag in tags))
+    try:
+        connection.execute("DELETE FROM roles_fts WHERE role_id = ?", (role_id,))
+        connection.execute(
+            "INSERT INTO roles_fts(role_id, name, instructions) VALUES (?, ?, ?)",
+            (role_id, name, instructions),
+        )
+    except sqlite3.OperationalError:
+        pass
+    return record
 
 
 class SQLiteRoleRepository:
@@ -44,7 +89,9 @@ class SQLiteRoleRepository:
         return connection
 
     def initialize(self) -> bool:
-        with self.connect() as connection:
+        # closing() matters: sqlite3's own context manager commits but leaves
+        # the connection open, which blocks a later journal-mode change.
+        with closing(self.connect()) as connection, connection:
             connection.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS schema_metadata (
@@ -86,41 +133,8 @@ class SQLiteRoleRepository:
         return True
 
     def upsert(self, payload: dict[str, Any], source: str) -> RoleRecord:
-        if source not in {"custom", "project", "official"}:
-            raise ValueError(f"unsupported role source: {source}")
-        errors = validate_role(payload)
-        if errors:
-            raise ValueError("; ".join(errors))
-        role_id = str(payload["id"]).strip()
-        name = str(payload["name"]).strip()
-        instructions = str(payload["instructions"]).strip()
-        locale = str(payload.get("locale", "und")).strip() or "und"
-        version = str(payload.get("version", "1")).strip() or "1"
-        canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-        content_hash = hashlib.sha256((canonical + "\n").encode()).hexdigest()
-        record = RoleRecord(role_id, name, instructions, source, locale, version, content_hash)
-        tags = sorted({str(tag).strip().casefold() for tag in payload.get("tags", []) if str(tag).strip()})
         with self.connect() as connection:
-            connection.execute(
-                """INSERT INTO roles(role_id, name, instructions, source, locale, version, content_hash, payload_json)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                   ON CONFLICT(role_id) DO UPDATE SET
-                     name=excluded.name, instructions=excluded.instructions, source=excluded.source,
-                     locale=excluded.locale, version=excluded.version,
-                     content_hash=excluded.content_hash, payload_json=excluded.payload_json""",
-                (role_id, name, instructions, source, locale, version, content_hash, canonical),
-            )
-            connection.execute("DELETE FROM role_tags WHERE role_id = ?", (role_id,))
-            connection.executemany("INSERT INTO role_tags(role_id, tag) VALUES (?, ?)", ((role_id, tag) for tag in tags))
-            try:
-                connection.execute("DELETE FROM roles_fts WHERE role_id = ?", (role_id,))
-                connection.execute(
-                    "INSERT INTO roles_fts(role_id, name, instructions) VALUES (?, ?, ?)",
-                    (role_id, name, instructions),
-                )
-            except sqlite3.OperationalError:
-                pass
-        return record
+            return write_role(connection, payload, source)
 
     def list(self) -> list[RoleRecord]:
         if not self.path.is_file():
@@ -131,10 +145,14 @@ class SQLiteRoleRepository:
             ).fetchall()
         return [RoleRecord(**dict(row)) for row in rows]
 
+    def reader(self) -> sqlite3.Connection:
+        """Connection for queries; subclasses may make it read-only."""
+        return self.connect()
+
     def payloads(self) -> list[dict[str, Any]]:
         if not self.path.is_file():
             self.initialize()
-        with self.connect() as connection:
+        with closing(self.reader()) as connection:
             rows = connection.execute(
                 "SELECT payload_json, source, content_hash FROM roles ORDER BY name, role_id"
             ).fetchall()
@@ -228,7 +246,7 @@ class SQLiteRoleRepository:
         if not tokens:
             return [], "fallback"
         columns = "role_id, name, instructions, source, locale, version, content_hash"
-        with self.connect() as connection:
+        with closing(self.reader()) as connection:
             try:
                 expression = " OR ".join('"' + token.replace('"', '""') + '"' for token in tokens)
                 rows = connection.execute(

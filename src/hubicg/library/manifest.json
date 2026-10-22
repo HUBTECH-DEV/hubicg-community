@@ -1,0 +1,434 @@
+{
+  "schemaVersion": "1.0",
+  "library": "hubicg-role-library",
+  "version": "2.1.0",
+  "license": "AGPL-3.0-only",
+  "locale": "pt-BR",
+  "source": {
+    "repository": "HUBTECH-DEV/hubicg-enterprise",
+    "revision": "2d07de37198d2ec8104c9f9e8823cd40b78ebe6d",
+    "paths": [
+      ".promptsLibrary/library.json",
+      ".promptsLibrary/roles/",
+      ".promptsLibrary/foundations/"
+    ]
+  },
+  "counts": {
+    "roles": 65,
+    "foundations": 17
+  },
+  "roles": [
+    {
+      "id": "principal-accessibility-specialist",
+      "path": "roles/principal-accessibility-specialist.json",
+      "sha256": "ccb79477a06a3d6f939ecf3b4f36760dc5e0bb40ab31012bd1261ec1c41713d7"
+    },
+    {
+      "id": "principal-agile-coach",
+      "path": "roles/principal-agile-coach.json",
+      "sha256": "b964816e53fa8944df01d84ccb92d380b2304124d1d1eddc5bb2f94d4bd053e1"
+    },
+    {
+      "id": "principal-ai-ml-engineer",
+      "path": "roles/principal-ai-ml-engineer.json",
+      "sha256": "60c1739137def47e94a3789463bf5e9bc8c3c94bf9c417a99ba2ee74e7eb94b4"
+    },
+    {
+      "id": "principal-analytics-engineer",
+      "path": "roles/principal-analytics-engineer.json",
+      "sha256": "d4b672c7aeecfd089e2a1fd40b79a61d061b23c8201c138136cffd82d16b806c"
+    },
+    {
+      "id": "principal-api-engineer",
+      "path": "roles/principal-api-engineer.json",
+      "sha256": "9378c30a5f8a6b4e0b2bf747b424ebd7aa671d8e6ac41b4a97eba4a2eee7f134"
+    },
+    {
+      "id": "principal-api-product-manager",
+      "path": "roles/principal-api-product-manager.json",
+      "sha256": "41f5bfe4c4839805122754b616c0117754416914c9b36ddd8c515643dade29ff"
+    },
+    {
+      "id": "principal-application-security-engineer-appsec",
+      "path": "roles/principal-application-security-engineer-appsec.json",
+      "sha256": "b251580bd9314bfc92f8157aca518673d3fbe179691c58f967e57413897b3dc6"
+    },
+    {
+      "id": "principal-backend-engineer",
+      "path": "roles/principal-backend-engineer.json",
+      "sha256": "045ee90e947ffe6fe0c453998921e1625adfc58c8515937e16fb7a86010b1094"
+    },
+    {
+      "id": "principal-bi-developer-bi-analyst",
+      "path": "roles/principal-bi-developer-bi-analyst.json",
+      "sha256": "a0e692548a3dd844cc7b1aad048c7c8bf0a010e8cc82de5989635843df1be1f9"
+    },
+    {
+      "id": "principal-business-analyst",
+      "path": "roles/principal-business-analyst.json",
+      "sha256": "cbd2a142f20f3db3850111a21182642c81c0b40c81e6fdc15f65798d7b481f82"
+    },
+    {
+      "id": "principal-cloud-architect",
+      "path": "roles/principal-cloud-architect.json",
+      "sha256": "e2459b37d8facae44889105e9cba3c610a56adb0b9d038e6d6d5afd4858540a3"
+    },
+    {
+      "id": "principal-cloud-engineer",
+      "path": "roles/principal-cloud-engineer.json",
+      "sha256": "53798a1459494ca625aa9d92646f408140226f067b8be3794f995aee87971ae6"
+    },
+    {
+      "id": "principal-data-architect",
+      "path": "roles/principal-data-architect.json",
+      "sha256": "9df1550efe5da68ce6cf723a0dc06edbd49dae1be3ff748dab9e46ba82d2ffc2"
+    },
+    {
+      "id": "principal-data-engineer",
+      "path": "roles/principal-data-engineer.json",
+      "sha256": "aea996f722031108acdc4b9fd015d270f319c91791b20798a2aba335c7f0b820"
+    },
+    {
+      "id": "principal-data-governance-specialist",
+      "path": "roles/principal-data-governance-specialist.json",
+      "sha256": "23b232f091a909199faa14c0225d41091a87664bc97a44ffdfed1a0977831159"
+    },
+    {
+      "id": "principal-data-product-manager",
+      "path": "roles/principal-data-product-manager.json",
+      "sha256": "da1e4057a8065c56d91074b70cc94c6bb30971e98a3fba677345dbe6c31bbb9b"
+    },
+    {
+      "id": "principal-database-administrator-dba",
+      "path": "roles/principal-database-administrator-dba.json",
+      "sha256": "21f920ca5e31f55319c0cbf16c3060a904f0f91bf7e3e69f047beaec3999b956"
+    },
+    {
+      "id": "principal-database-reliability-engineer-dbre",
+      "path": "roles/principal-database-reliability-engineer-dbre.json",
+      "sha256": "2d79ce0b1eaca9ca9f017c14758bce04e5ec22852209f394cfb81b54d449a560"
+    },
+    {
+      "id": "principal-delivery-manager",
+      "path": "roles/principal-delivery-manager.json",
+      "sha256": "25d46aa4a2161a732f123293807d586c4bd408d09d5509f687f76109a819a93a"
+    },
+    {
+      "id": "principal-developer-experience-engineer-devex",
+      "path": "roles/principal-developer-experience-engineer-devex.json",
+      "sha256": "5c8fcafd6c8d2b37e0335d373d2dc721a2dba50cf322268feda94d1dd5f6636b"
+    },
+    {
+      "id": "principal-devops-engineer",
+      "path": "roles/principal-devops-engineer.json",
+      "sha256": "027c3fbf80803121ac4459c4bcbafb55d05363fb10a338dd3e2a6be824b44e50"
+    },
+    {
+      "id": "principal-devsecops-engineer",
+      "path": "roles/principal-devsecops-engineer.json",
+      "sha256": "d80fbf5a3d0609ea4a5914ea0cc99ddb192fd455b814f53108b53160e113e95d"
+    },
+    {
+      "id": "principal-didactic-presentation-designer",
+      "path": "roles/principal-didactic-presentation-designer.json",
+      "sha256": "68b5ac253c77f987fe6da1a62f47330d88bfc9c8fc911ddf22b3cc10d8f9201f"
+    },
+    {
+      "id": "principal-engineering-manager",
+      "path": "roles/principal-engineering-manager.json",
+      "sha256": "b1f3b59750a2e9b3e86f35ecf936f87bdc9b30c9c83c06241c6759ecc2a9382a"
+    },
+    {
+      "id": "principal-enterprise-architect",
+      "path": "roles/principal-enterprise-architect.json",
+      "sha256": "7cbeb24a1b1b99982205f3d87b37029ba4102e3f42abd00114d6290122fcf043"
+    },
+    {
+      "id": "principal-finops-engineer",
+      "path": "roles/principal-finops-engineer.json",
+      "sha256": "ea0a42c4cf3bc38a16d7c4d098ca55053c299d9734b99ada0d4110e37f0085e5"
+    },
+    {
+      "id": "principal-frontend-engineer",
+      "path": "roles/principal-frontend-engineer.json",
+      "sha256": "73bac23ef95151f95bb9cfc4a18201e5afbd39623f3de133ecb57249d9657a68"
+    },
+    {
+      "id": "principal-full-stack-engineer",
+      "path": "roles/principal-full-stack-engineer.json",
+      "sha256": "52c54c93c9f690fbe75adbcac22e9af7898d54706a43bb80924af04e900dd29b"
+    },
+    {
+      "id": "principal-git-engineer",
+      "path": "roles/principal-git-engineer.json",
+      "sha256": "a2637da6d6426732a09b1d1639f9c86194e99b088ec1ca5e7177dd318dd32ee0"
+    },
+    {
+      "id": "principal-grc-it-risk-analyst",
+      "path": "roles/principal-grc-it-risk-analyst.json",
+      "sha256": "e86233e8f3690275faded0a2f0aa7ed36247fbb533300f289ebc82ae0dafe75b"
+    },
+    {
+      "id": "principal-implementation-consultant",
+      "path": "roles/principal-implementation-consultant.json",
+      "sha256": "7a8c4d99d1399e7460f0cd228d3b2e9dbd61c516f59dbd4caed8489dda66bd60"
+    },
+    {
+      "id": "principal-implementation-engineer-deployment-engineer",
+      "path": "roles/principal-implementation-engineer-deployment-engineer.json",
+      "sha256": "0188a2ef23f40077e5b601f933032182affaa63ba2121db1e27495c8141ff233"
+    },
+    {
+      "id": "principal-integration-architect",
+      "path": "roles/principal-integration-architect.json",
+      "sha256": "efca295ff44b2db040114c11d2c6ea961f2bb697137aac1c341e235239627196"
+    },
+    {
+      "id": "principal-it-talent-headhunter-technical-recruiter",
+      "path": "roles/principal-it-talent-headhunter-technical-recruiter.json",
+      "sha256": "1a5d290c4989d78edb8dc018cad536c467a9a54442f0dd72f35af80ebd19b2c9"
+    },
+    {
+      "id": "principal-mlops-engineer",
+      "path": "roles/principal-mlops-engineer.json",
+      "sha256": "b707a7d591147914356ee209032acef5df3833ad8a1df0f26b45f596f2bc925e"
+    },
+    {
+      "id": "principal-mobile-engineer",
+      "path": "roles/principal-mobile-engineer.json",
+      "sha256": "98ceb12041804bc4a02d9481742975d93c5d9e4e125228108c278b711f6620e6"
+    },
+    {
+      "id": "principal-multiformat-publishing-specialist",
+      "path": "roles/principal-multiformat-publishing-specialist.json",
+      "sha256": "62220e20afe6939f98861b17d5071d04ec507f0e78b8b7340aa235330d4ea1ac"
+    },
+    {
+      "id": "principal-observability-engineer",
+      "path": "roles/principal-observability-engineer.json",
+      "sha256": "c9d524bb1b11c4064837c047dad5b95d60a1cde147574f3f34047fd896335c9f"
+    },
+    {
+      "id": "principal-pedagogy-and-didactics-specialist",
+      "path": "roles/principal-pedagogy-and-didactics-specialist.json",
+      "sha256": "6dc1fd7473087c1983c03ebb1252ac228b9862c339befb9ed10062c17fbfcee0"
+    },
+    {
+      "id": "principal-performance-engineer",
+      "path": "roles/principal-performance-engineer.json",
+      "sha256": "12315f0e35c08c2a1a978cde6ddcbbfb0a1d2b0cbd4dab2c0eba309ad6c6e227"
+    },
+    {
+      "id": "principal-platform-engineer",
+      "path": "roles/principal-platform-engineer.json",
+      "sha256": "0ad01797f1a05a83b0aafa5bb43fcdcde1f5de48af3f4f30607960bc4341cc98"
+    },
+    {
+      "id": "principal-privacy-engineer-data-protection-specialist",
+      "path": "roles/principal-privacy-engineer-data-protection-specialist.json",
+      "sha256": "98c4c06f9c9b2a505f8d89bc5b4d9124db85d0e8adefd3b76465b1c9300a7c9e"
+    },
+    {
+      "id": "principal-product-designer",
+      "path": "roles/principal-product-designer.json",
+      "sha256": "4d16cd4e178760fdcae029c4d54f7b65b0eed79c155f3e9394ae600623e26785"
+    },
+    {
+      "id": "principal-product-owner",
+      "path": "roles/principal-product-owner.json",
+      "sha256": "58300d2391a66db79ad989e2540b3a18f500c9e7cc25600c769cdaa4ce1280be"
+    },
+    {
+      "id": "principal-product-strategist-senior-product-manager",
+      "path": "roles/principal-product-strategist-senior-product-manager.json",
+      "sha256": "1e3944dbdeb37510e44cd55070f85ec5f946fee76d88ce6b4cb728e7845a6c08"
+    },
+    {
+      "id": "principal-project-manager-technology",
+      "path": "roles/principal-project-manager-technology.json",
+      "sha256": "e4dc00c518aa4817bf2ed0c9f5160c8734b876829dc2b3a6cfa692061b7f4dc4"
+    },
+    {
+      "id": "principal-prompt-engineer-ai-application-engineer",
+      "path": "roles/principal-prompt-engineer-ai-application-engineer.json",
+      "sha256": "1117f62afb748067e00d99592d4358e760cad667bc147885c2de6a4c452b12e8"
+    },
+    {
+      "id": "principal-qa-analyst",
+      "path": "roles/principal-qa-analyst.json",
+      "sha256": "e4709d987757fa2da869868c8dc3127e696fc2f9d0452aa1de64afcf2c973f19"
+    },
+    {
+      "id": "principal-qa-engineer-sdet",
+      "path": "roles/principal-qa-engineer-sdet.json",
+      "sha256": "029163a55f3bb9fde54af7871f5e4368ab2bc5f040b223a07546e1f1cea84a25"
+    },
+    {
+      "id": "principal-release-manager",
+      "path": "roles/principal-release-manager.json",
+      "sha256": "3715b3db22d71c7e6f6cb5c1173d89cf2896f0f49928f42dbb899541776246b7"
+    },
+    {
+      "id": "principal-scrum-master",
+      "path": "roles/principal-scrum-master.json",
+      "sha256": "d8945dcec8bfe5dc746d7e7d776b3e9d55b3a9991b98b07a502ddd3d1e6911a0"
+    },
+    {
+      "id": "principal-security-architect",
+      "path": "roles/principal-security-architect.json",
+      "sha256": "1cef316278a470f4ba790de082115026f6b1f00dd0efedf41bd5af50c7c71e26"
+    },
+    {
+      "id": "principal-security-engineer",
+      "path": "roles/principal-security-engineer.json",
+      "sha256": "d3e1a6bc26004a917aa3fb9135f18aef31a96ab6a09560db1467dfb2e3aed12d"
+    },
+    {
+      "id": "principal-service-designer",
+      "path": "roles/principal-service-designer.json",
+      "sha256": "16e97d58d7a281bcb99e6f0c2a6e9e6d809fabcd9147062127d4572c0e7daa17"
+    },
+    {
+      "id": "principal-site-reliability-engineer-sre",
+      "path": "roles/principal-site-reliability-engineer-sre.json",
+      "sha256": "61757aa298e80fe478f44aea24c55bd5fe552e57a5d213d675f8ea6f9185fc73"
+    },
+    {
+      "id": "principal-software-architect",
+      "path": "roles/principal-software-architect.json",
+      "sha256": "4993064cf451596dc8573b2e7c3cb45cce7c81465f2d9dda2da3a2bd02336c63"
+    },
+    {
+      "id": "principal-solution-architect",
+      "path": "roles/principal-solution-architect.json",
+      "sha256": "e967da3261bc4e7f459b760bc84b5409b39228ca6563ca7db446b4a1c027c1d2"
+    },
+    {
+      "id": "principal-solutions-engineer-customer-engineer",
+      "path": "roles/principal-solutions-engineer-customer-engineer.json",
+      "sha256": "5b7a5a6b8b3e94cc31eb932c2a2cfa7b028ec3fcdd88d1686d7a20097bfcbcf0"
+    },
+    {
+      "id": "principal-systems-integration-engineer",
+      "path": "roles/principal-systems-integration-engineer.json",
+      "sha256": "b90710b333c176cbe468f585dfbe19eaad9720e9da3649e5d3c5e33ca653a2c9"
+    },
+    {
+      "id": "principal-tech-lead",
+      "path": "roles/principal-tech-lead.json",
+      "sha256": "827becc644ce39f2cc63b6d4e46813f3e4386ee8cb90d92d269c102d631e0261"
+    },
+    {
+      "id": "principal-technical-account-manager-tam",
+      "path": "roles/principal-technical-account-manager-tam.json",
+      "sha256": "2a00d12ebee84417b632b031665f9989c9732b43065e392316016331defd667f"
+    },
+    {
+      "id": "principal-technical-support-engineer",
+      "path": "roles/principal-technical-support-engineer.json",
+      "sha256": "5b45f95fc4535f2613b9b40b5cc4adfe931107be5e8efc0e53c52d8fa0bfa1eb"
+    },
+    {
+      "id": "principal-technology-research-curator-knowledge-architect",
+      "path": "roles/principal-technology-research-curator-knowledge-architect.json",
+      "sha256": "b74ccf0f0d07c850a047b6595b7eb972c5e69265dad4fe9e07193f8b50ee9c09"
+    },
+    {
+      "id": "principal-trilingual-linguistics-and-phonetics-specialist",
+      "path": "roles/principal-trilingual-linguistics-and-phonetics-specialist.json",
+      "sha256": "6ef8b6e9278c52cf6b892eeaf165afba2d2734705f076acd17b09e6461733e49"
+    },
+    {
+      "id": "principal-ux-researcher",
+      "path": "roles/principal-ux-researcher.json",
+      "sha256": "3e2de3b56db49fdb882c529eb1b0c1a9672c9453cad7b3bfebde589d67669ee1"
+    }
+  ],
+  "foundations": [
+    {
+      "id": "accessibility",
+      "path": "foundations/accessibility.json",
+      "sha256": "aa26eb425ea3269f9e578ed389a2fdb5e6315806b11ac41e40c9b0a7548943b8"
+    },
+    {
+      "id": "analytical-integrity",
+      "path": "foundations/analytical-integrity.json",
+      "sha256": "78873ea3ab04d0b58b81eaaa31f58d7aadc1d295edf415a419c3c8134b05c34a"
+    },
+    {
+      "id": "architecture-decision",
+      "path": "foundations/architecture-decision.json",
+      "sha256": "2b526e18f3e320d06e9bffce5bbe88b125f814226d89646008b0b41bb03a0b65"
+    },
+    {
+      "id": "cost-finops",
+      "path": "foundations/cost-finops.json",
+      "sha256": "8c387f7b17346455b0519d0eb466bda4c4f1b6ce2f51abe695f44fc48b0d4dac"
+    },
+    {
+      "id": "data-quality-governance",
+      "path": "foundations/data-quality-governance.json",
+      "sha256": "f7b091ed358e69c246ce5a5c2f538b618e0d91d806e9ca975eb82957cdf95d30"
+    },
+    {
+      "id": "distributed-systems",
+      "path": "foundations/distributed-systems.json",
+      "sha256": "acd657cd5f88041f3ec5e442dc10847e1b7b63258f23b939694240c84d661456"
+    },
+    {
+      "id": "flow-delivery",
+      "path": "foundations/flow-delivery.json",
+      "sha256": "1f011d0127ded8eada6c2bcf75fdcc77c7f1364602bb085bb7dc79d65baff0f1"
+    },
+    {
+      "id": "language-communication",
+      "path": "foundations/language-communication.json",
+      "sha256": "742e5d0b752acbf968621e92ba24cb22a2dded52fce600ff3c9d23104ae90e7e"
+    },
+    {
+      "id": "learning-design",
+      "path": "foundations/learning-design.json",
+      "sha256": "c98a44e30ce0a73e9e0011d079849d1c4793a7eba91383cd2035a8101f331342"
+    },
+    {
+      "id": "observability",
+      "path": "foundations/observability.json",
+      "sha256": "bce6d3ea45164428da37e5c66d33bab1fa0060a3e98414f9ba71b6ec40fe4656"
+    },
+    {
+      "id": "people-teams",
+      "path": "foundations/people-teams.json",
+      "sha256": "94c646bf73c36f38b54bb950b8cdfbb20587407a0df06c13d12f549449356879"
+    },
+    {
+      "id": "performance-capacity",
+      "path": "foundations/performance-capacity.json",
+      "sha256": "bc2fd96bf51353eddc28e262a8897fa5b3dd6c53b23f37efe2b09006a6c3ee29"
+    },
+    {
+      "id": "product-discovery",
+      "path": "foundations/product-discovery.json",
+      "sha256": "47f0b5852e8e4fc91405211ca21e6229cb0f904c20672d907300f80d3f31b19d"
+    },
+    {
+      "id": "reliability-sre",
+      "path": "foundations/reliability-sre.json",
+      "sha256": "d1a1c4d31b05a3c24f71674a09f6fe02f5193e0eacd49b0798585e152e28da41"
+    },
+    {
+      "id": "research-evidence",
+      "path": "foundations/research-evidence.json",
+      "sha256": "6a61095d5db9eb3d97ddd36de0f138aa5d74ce116115b0b6a798616151936572"
+    },
+    {
+      "id": "security-privacy",
+      "path": "foundations/security-privacy.json",
+      "sha256": "507099616cf4e881c5b134915effcb03d129da668758fce00e4e12e31921e279"
+    },
+    {
+      "id": "software-engineering",
+      "path": "foundations/software-engineering.json",
+      "sha256": "9f36e92a013c299e98f8b63664f50cbe3c3f0a60a0e429beabb6b37fa1d2d30e"
+    }
+  ]
+}

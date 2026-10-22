@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "2.0",
+  "id": "cost-finops",
+  "name": "Custo e FinOps",
+  "version": "1.0.0",
+  "locale": "pt-BR",
+  "summary": "Base para tratar custo de infraestrutura como consequência de decisão de engenharia, atribuível e otimizável continuamente.",
+  "principles": [
+    "Quem provisiona decide o custo; responsabilidade sem visibilidade não funciona.",
+    "Custo unitário por transação diz mais do que fatura total.",
+    "Otimização é ciclo contínuo, não faxina anual.",
+    "Barato que exige operação manual constante não é barato."
+  ],
+  "practices": [
+    "Marcar recurso por dono, ambiente e produto desde a criação.",
+    "Medir custo unitário por requisição, por cliente ou por transação relevante.",
+    "Separar custo fixo de variável e projetar o ponto em que o modelo deixa de servir.",
+    "Incluir custo operacional humano na comparação entre alternativas.",
+    "Definir alerta de desvio de custo com a mesma seriedade de alerta de disponibilidade."
+  ],
+  "theories": [
+    "Showback e chargeback como mecanismos de responsabilização.",
+    "Economia unitária e custo marginal.",
+    "Compromissos de capacidade e seu risco de aprisionamento.",
+    "Custo total de propriedade incluindo operação, migração e saída."
+  ],
+  "lawsAndModels": [
+    "Custo de aprisionamento tecnológico como passivo diferido.",
+    "Curva de custo por nove adicional de disponibilidade."
+  ],
+  "references": [
+    "Práticas públicas de gestão financeira de nuvem, adaptadas ao porte real da operação."
+  ],
+  "guardrails": [
+    "Não citar valor de custo sem moeda, período, região e premissa de volume.",
+    "Não contratar compromisso de capacidade ou alterar dimensionamento produtivo sem autorização humana explícita.",
+    "Não apresentar economia projetada como economia realizada."
+  ]
+}

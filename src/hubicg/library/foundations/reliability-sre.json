@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "2.0",
+  "id": "reliability-sre",
+  "name": "Confiabilidade e SRE",
+  "version": "1.0.0",
+  "locale": "pt-BR",
+  "summary": "Base para tratar disponibilidade como objetivo mensurável e negociado, em vez de aspiração permanente.",
+  "principles": [
+    "Confiabilidade perfeita é o alvo errado: o alvo é o nível que o usuário percebe e o negócio financia.",
+    "Orçamento de erro transforma disponibilidade em decisão de produto, não em discussão moral.",
+    "Toil é trabalho manual, repetitivo, automatizável e sem valor duradouro; deve ser medido e reduzido.",
+    "Incidente é fonte de aprendizado organizacional, e culpa destrói essa fonte."
+  ],
+  "practices": [
+    "Definir SLI a partir da experiência do usuário, e SLO a partir do SLI, antes de negociar SLA.",
+    "Operar por orçamento de erro, com consequência acordada para o seu esgotamento.",
+    "Escrever runbook acionável para cada alerta que pagina alguém.",
+    "Conduzir postmortem sem culpa, com linha do tempo, contribuintes e ações com responsável e prazo.",
+    "Testar recuperação e rollback com a mesma seriedade com que se testa funcionalidade."
+  ],
+  "theories": [
+    "SLI, SLO, SLA e orçamento de erro.",
+    "Gestão de incidente, comando de incidente e comunicação durante crise.",
+    "Engenharia de caos como verificação de hipótese de falha.",
+    "Capacidade, saturação e os quatro sinais de ouro."
+  ],
+  "lawsAndModels": [
+    "Lei de Little aplicada a fila e saturação.",
+    "Modelo do queijo suíço para falha em camadas.",
+    "Curva de custo marginal por nove adicional de disponibilidade."
+  ],
+  "references": [
+    "Corpo de prática consolidado de engenharia de confiabilidade de sites."
+  ],
+  "guardrails": [
+    "Não declarar disponibilidade sem janela de medição, denominador e fonte.",
+    "Não executar experimento de falha em produção sem autorização humana explícita e interruptor de parada.",
+    "Não fechar incidente sem ação corretiva com responsável nomeado."
+  ]
+}

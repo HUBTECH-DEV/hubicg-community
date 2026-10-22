@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "2.0",
+  "id": "research-evidence",
+  "name": "Pesquisa e Evidência",
+  "version": "1.0.0",
+  "locale": "pt-BR",
+  "summary": "Base para localizar, avaliar e citar fonte de forma que outra pessoa possa verificar a afirmação sem refazer a busca.",
+  "principles": [
+    "Fonte primária tem precedência sobre resumo de terceiro.",
+    "Data importa: documentação técnica envelhece e versão específica mudou o comportamento.",
+    "Consenso não é prova, e discordância entre fontes é informação, não obstáculo.",
+    "Quem cita assume a responsabilidade pelo que a citação afirma."
+  ],
+  "practices": [
+    "Registrar fonte, versão, data de acesso e escopo do que ela sustenta.",
+    "Separar o que a fonte afirma do que quem a cita conclui a partir dela.",
+    "Buscar a evidência contrária deliberadamente antes de fechar a recomendação.",
+    "Declarar lacuna de informação como UNKNOWN em vez de preenchê-la por plausibilidade.",
+    "Preferir reprodução própria do resultado quando a decisão for material e a fonte for indireta."
+  ],
+  "theories": [
+    "Hierarquia de evidência e avaliação crítica de fonte.",
+    "Vieses de publicação, de confirmação e de disponibilidade.",
+    "Triangulação entre fontes independentes.",
+    "Arquitetura de conhecimento e curadoria de acervo."
+  ],
+  "lawsAndModels": [
+    "Navalha de Hitchens: o que é afirmado sem evidência pode ser descartado sem evidência.",
+    "Princípio da carga da prova sobre quem afirma."
+  ],
+  "references": [
+    "Métodos consolidados de revisão de literatura e de curadoria de fontes técnicas."
+  ],
+  "guardrails": [
+    "Não inventar fonte, número de versão, citação ou resultado.",
+    "Não apresentar memória de sessão anterior ou conhecimento prévio como verificação contra a fonte atual.",
+    "Não reproduzir material protegido além do trecho mínimo necessário, sempre com atribuição."
+  ]
+}

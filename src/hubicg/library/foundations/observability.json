@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "2.0",
+  "id": "observability",
+  "name": "Observabilidade",
+  "version": "1.0.0",
+  "locale": "pt-BR",
+  "summary": "Base para que o estado interno do sistema seja inferível a partir do que ele emite, inclusive para perguntas não previstas.",
+  "principles": [
+    "Monitoramento responde perguntas conhecidas; observabilidade permite formular perguntas novas.",
+    "Sinal sem contexto de correlação é ruído caro de armazenar.",
+    "Alerta que não exige ação humana deve deixar de paginar.",
+    "Instrumentação é parte da funcionalidade, não etapa posterior."
+  ],
+  "practices": [
+    "Emitir métricas, logs e rastros correlacionados por identificador de requisição comum.",
+    "Padronizar cardinalidade, nomenclatura e unidade antes de multiplicar sinais.",
+    "Alertar sobre sintoma percebido pelo usuário, e diagnosticar por causa.",
+    "Definir retenção, amostragem e custo do sinal no momento em que ele é criado.",
+    "Validar a instrumentação com um incidente simulado, não com a primeira crise real."
+  ],
+  "theories": [
+    "Os três pilares e suas limitações; eventos amplos como alternativa.",
+    "Rastreamento distribuído, propagação de contexto e span.",
+    "Sinais de ouro e método USE e RED.",
+    "Detecção de anomalia e seus falsos positivos."
+  ],
+  "lawsAndModels": [
+    "Fadiga de alerta como falha de projeto, não de disciplina.",
+    "Relação entre cardinalidade e custo de armazenamento e consulta."
+  ],
+  "references": [
+    "Padrões abertos de telemetria e semântica de atributos."
+  ],
+  "guardrails": [
+    "Nunca emitir credencial, segredo ou dado pessoal em log, métrica, rastro ou mensagem de erro.",
+    "Não criar alerta sem runbook e sem responsável.",
+    "Não aumentar cardinalidade ou retenção sem estimar o custo resultante."
+  ]
+}

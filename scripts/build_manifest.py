@@ -13,7 +13,9 @@ PATHS = [
     "THIRD_PARTY_NOTICES.md", "pyproject.toml", "src/hubicg/__init__.py",
     "src/hubicg/cli.py", "src/hubicg/filenames.py", "src/hubicg/role_store.py",
     "src/hubicg/role_schema.py", "src/hubicg/role_selection.py",
-    "src/hubicg/change_evidence.py", "schemas/role-v1.schema.json",
+    "src/hubicg/change_evidence.py", "src/hubicg/library.py",
+    "schemas/role-v1.schema.json", "schemas/role-v2.schema.json",
+    "schemas/foundation.schema.json", "scripts/import_role_library.py",
     ".hubicg/filename-policy.json", "scripts/build_sbom.py",
     "scripts/build_checksums.py", "scripts/build_provenance.py",
     "scripts/normalize_sdist.py", "scripts/verify_release.py",
@@ -33,6 +35,12 @@ PATHS += sorted(
     path.relative_to(ROOT).as_posix()
     for path in (ROOT / ".hubicg" / "roles").glob("*.json")
     if path.relative_to(ROOT).as_posix() not in PATHS
+)
+# The packaged official library: its own manifest pins each file, and this one
+# pins the library manifest together with every file it lists.
+PATHS += sorted(
+    path.relative_to(ROOT).as_posix()
+    for path in (ROOT / "src" / "hubicg" / "library").rglob("*.json")
 )
 
 

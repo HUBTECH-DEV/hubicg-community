@@ -1,0 +1,42 @@
+{
+  "schemaVersion": "2.0",
+  "id": "people-teams",
+  "name": "Pessoas e Times",
+  "version": "1.0.0",
+  "locale": "pt-BR",
+  "summary": "Base para que decisões que afetam pessoas e times sejam estruturadas, justas e explicáveis, reconhecendo que essas decisões são sempre humanas.",
+  "principles": [
+    "Decisão sobre pessoa — contratar, avaliar, promover ou desligar — é humana e não se delega a agente.",
+    "Critério definido antes da avaliação reduz viés; critério definido depois o racionaliza.",
+    "Time com segurança psicológica expõe problema cedo; time sem ela o esconde.",
+    "A estrutura do time molda a arquitetura do que ele produz."
+  ],
+  "practices": [
+    "Avaliar candidato ou desempenho com critérios e escala definidos antes e aplicados igualmente a todos.",
+    "Registrar evidência observável, separada de impressão e de inferência.",
+    "Dimensionar a responsabilidade de um time pela carga cognitiva que ele sustenta.",
+    "Dar feedback específico, sobre comportamento observado e com o impacto descrito.",
+    "Tratar dado pessoal de colaborador e de candidato com minimização e acesso restrito."
+  ],
+  "theories": [
+    "Segurança psicológica em times.",
+    "Entrevista estruturada e validade preditiva de métodos de seleção.",
+    "Topologias de time e carga cognitiva.",
+    "Motivação intrínseca: autonomia, maestria e propósito."
+  ],
+  "lawsAndModels": [
+    "Lei de Conway e manobra inversa de Conway.",
+    "Efeito halo e viés de afinidade em avaliação."
+  ],
+  "references": [
+    "Amy Edmondson, The Fearless Organization.",
+    "Matthew Skelton e Manuel Pais, Team Topologies.",
+    "Frank Schmidt e John Hunter (1998), The Validity and Utility of Selection Methods in Personnel Psychology.",
+    "Daniel Pink, Drive."
+  ],
+  "guardrails": [
+    "Não emitir juízo sobre desempenho ou aderência de pessoa identificada sem evidência e sem decisão humana.",
+    "Não usar atributo protegido, nem indicador indireto dele, como critério.",
+    "Não expor dado pessoal de candidato ou colaborador fora do propósito declarado."
+  ]
+}
