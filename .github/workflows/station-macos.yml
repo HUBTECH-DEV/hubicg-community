@@ -1,0 +1,52 @@
+name: Station macOS experimental
+
+on:
+  pull_request:
+    paths:
+      - 'installers/station/**'
+      - 'tests/station_ui/**'
+      - 'tests/fixtures/station/**'
+      - 'tests/test_station*'
+      - 'docs/architecture/station-installer-engine*'
+      - '.github/workflows/station-macos.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'installers/station/**'
+      - 'tests/station_ui/**'
+      - 'tests/fixtures/station/**'
+      - 'tests/test_station*'
+      - 'docs/architecture/station-installer-engine*'
+      - '.github/workflows/station-macos.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  native-isolated:
+    runs-on: macos-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Existing runner tools and contract tests
+        run: |
+          node --version
+          python3 --version
+          python3 -m unittest discover -s tests -p test_station_ui_macos.py -v
+      - name: Native JXA, AppleScript and bash adapter without windows
+        shell: bash
+        run: |
+          set -euo pipefail
+          gui="$PWD/installers/station/ui/macos"
+          work=$(mktemp -d)
+          trap 'rm -rf -- "$work"' EXIT
+          /usr/bin/osacompile -o "$work/launcher.scpt" "$gui/Instalar-HubICG-Estacao.applescript"
+          /usr/bin/osascript -l JavaScript tests/station_ui/StationUi.Mac.NativeChecks.js "$gui"
+          /bin/bash tests/station_ui/Test-StationUiMacProcess.sh "$gui"
+          set +e
+          /bin/bash "$gui/Instalar-HubICG-Estacao.command" --headless-check \
+            --engine "$PWD/tests/fixtures/station/macos-check-engine.sh" > "$work/check.json"
+          code=$?
+          set -e
+          test "$code" -eq 5
+          python3 -c 'import json,sys; result=json.load(open(sys.argv[1])); assert result["exitCode"] == 5, result' "$work/check.json"

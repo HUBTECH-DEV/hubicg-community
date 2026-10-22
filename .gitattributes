@@ -5,3 +5,5 @@
 *.gif binary
 *.pdf binary
 *.docx binary
+*.command text eol=lf
+*.applescript text eol=lf
