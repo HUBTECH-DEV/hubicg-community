@@ -1,0 +1,16 @@
+{
+  "diff_analisado": true,
+  "veredito": "aprovado",
+  "resumo": "A mudança adiciona quatro capacidades OpenAI opcionais, com implementação no Windows e seleção explícita. Inclui documentação, catálogo de interface e testes isolados, preservando a seleção padrão. Foi identificado um caso de borda na revogação da declaração de login do ChatGPT, sem achados Critical ou High. A revisão considerou exclusivamente o diff fornecido, sem executar testes.",
+  "findings": [
+    {
+      "severidade": "Medium",
+      "arquivo": "installers/station/hubicg-station.ps1",
+      "linha": 1226,
+      "regra": "docs/runbooks/station-openai-capabilities.md — uma resposta chatgpt.loginConfirmed=false deve revogar o reconhecimento anterior em apply.",
+      "impacto": "Quando instalação e autenticação do ChatGPT estão selecionadas juntas, uma falha ou pendência na instalação bloqueia Step-ChatGptDesktopAuth antes de processar a resposta false. O timestamp anterior permanece gravado. Após resolver a instalação, uma execução sem respostas pode reportar already com base numa declaração que o usuário tentou revogar.",
+      "correcao": "Processe a revogação explícita da declaração para a etapa selecionada antes do bloqueio por dependências, mantendo check e plan sem gravações.",
+      "verificacao": "Adicionar teste com timestamp anterior, ambas as etapas selecionadas, falha na instalação e resposta false. Confirmar que o timestamp foi removido e que, após resolver a instalação, uma execução sem resposta solicita nova declaração."
+    }
+  ]
+}
