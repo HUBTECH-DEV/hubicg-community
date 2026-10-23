@@ -7,6 +7,7 @@ import io
 import json
 import os
 import shutil
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -457,6 +458,7 @@ class SystemToolsHelperTests(unittest.TestCase):
         frontend = ui.TerminalFrontend(ui.Texts(), stdout=io.StringIO())
         wizard = ui.Wizard(frontend, SIMULATOR, ui.Texts())
         wizard.repo_dir = "/tmp/clone with spaces"
+        wizard.selection = ["git", "gh"]
         wizard.last = ui.RunState()
         wizard.last.exit_code = 3
         action = {"id": "privilege-required", "command": "sudo arbitrary --token secret"}
@@ -470,7 +472,7 @@ class SystemToolsHelperTests(unittest.TestCase):
             self.addCleanup(shutil.rmtree, directory)
             self.assertEqual(directory.stat().st_mode & 0o777, 0o700)
             request = json.loads((directory / "request.json").read_text())
-            self.assertEqual(set(request), {"schema", "engine", "repoDir"})
+            self.assertEqual(set(request), {"schema", "engine", "repoDir", "tools"})
             self.assertIn("--system-tools-helper", popen.call_args.args[0])
             self.assertNotIn("sudo", popen.call_args.args[0])
             self.assertTrue(frontend.action_terminal(action))
@@ -493,6 +495,11 @@ class SystemToolsHelperTests(unittest.TestCase):
     @unittest.skipIf(os.name != "posix" or getattr(os, "geteuid", lambda: 0)() == 0,
                      "executar como usuário normal para provar o TTY")
     def test_helper_inherits_real_tty_and_limits_arguments(self) -> None:
+        for tools in (["git"], ["gh"], ["git", "gh"]):
+            with self.subTest(tools=tools):
+                self.check_helper_tty(tools)
+
+    def check_helper_tty(self, tools: list[str]) -> None:
         import pty
         import signal
         with tempfile.TemporaryDirectory() as temp:
@@ -502,6 +509,7 @@ class SystemToolsHelperTests(unittest.TestCase):
             engine.write_text('test -t 0 && test -t 1 && test -t 2 || exit 9\n'
                               'printf "%s\\n" "$@" > "' + str(capture) + '"\n')
             request = {"schema": "hubicg.station.system-tools/1", "engine": str(engine),
+                       "tools": tools,
                        "repoDir": str(directory / "clone with spaces"), "command": "sudo bad", "only": "all"}
             (directory / "request.json").write_text(json.dumps(request))
             pid, master = pty.fork()
@@ -521,7 +529,7 @@ class SystemToolsHelperTests(unittest.TestCase):
                     time.sleep(0.05)
                 self.assertEqual(os.waitstatus_to_exitcode(status), 0)
                 args = capture.read_text().splitlines()
-                self.assertEqual(args, ["--only", "git,gh", "--repo-dir", request["repoDir"],
+                self.assertEqual(args, ["--only", ",".join(tools), "--repo-dir", request["repoDir"],
                                        "--config-dir", str(directory / "config"),
                                        "--log-file", str(directory / "engine.jsonl")])
                 self.assertEqual(json.loads((directory / "result.json").read_text())["exitCode"], 0)
@@ -538,7 +546,7 @@ class SystemToolsHelperTests(unittest.TestCase):
             engine.write_text("trap '' INT TERM\n(trap '' INT TERM; while :; do sleep 1; done) &\n"
                               'echo "$!" > "' + str(directory / "grandchild") + '"\nwait\n')
             (directory / "request.json").write_text(json.dumps({"schema": "hubicg.station.system-tools/1",
-                "engine": str(engine), "repoDir": str(directory / "clone")}))
+                "tools": ["git", "gh"], "engine": str(engine), "repoDir": str(directory / "clone")}))
             preserved = directory / "engine.jsonl"
             preserved.write_text("diagnóstico")
             pid, master = pty.fork()
@@ -579,7 +587,7 @@ class SystemToolsHelperTests(unittest.TestCase):
             engine = directory / "fake.sh"
             engine.write_text('echo ready > "' + str(directory / "ready") + '"\nsleep 60\n')
             (directory / "request.json").write_text(json.dumps({"schema": "hubicg.station.system-tools/1",
-                "engine": str(engine), "repoDir": str(directory / "clone")}))
+                "tools": ["git", "gh"], "engine": str(engine), "repoDir": str(directory / "clone")}))
             pid, master = pty.fork()
             if pid == 0:
                 os.execv(sys.executable, [sys.executable, str(LINUX / "hubicg_station_ui.py"),
@@ -601,8 +609,14 @@ class SystemToolsHelperTests(unittest.TestCase):
                     self.assertFalse((directory / "result.json").exists())
                     os.killpg(record["pgid"], signal.SIGKILL)
                 deadline = time.monotonic() + 5
-                while helper.pending() and time.monotonic() < deadline:
+                while ui.system_tools_group_alive(record) and time.monotonic() < deadline:
                     time.sleep(0.05)
+                self.assertTrue(helper.pending(), "sem recibo de término não podemos excluir descendentes setsid")
+                self.assertIn("supervisão", helper.reason)
+                self.assertFalse((directory / "result.json").exists())
+                # Only a different kernel boot proves every unobservable old process ended.
+                record["bootId"] = "previous-boot"
+                ui.atomic_helper_record(directory, record)
                 self.assertFalse(helper.pending())
                 self.assertEqual(json.loads((directory / "result.json").read_text())["exitCode"], 130)
                 self.assertTrue((directory / "request.json").exists())
@@ -633,7 +647,7 @@ class SystemToolsHelperTests(unittest.TestCase):
             helper.process = mock.Mock()
             helper.process.poll.return_value = 0  # daemonized terminal client is not the helper
             (directory / "request.json").write_text(json.dumps({"schema": "hubicg.station.system-tools/1",
-                "engine": str(SIMULATOR), "repoDir": str(directory / "clone")}))
+                "tools": ["git"], "engine": str(SIMULATOR), "repoDir": str(directory / "clone")}))
             with (directory / "launch.lock").open("a") as lock:
                 fcntl.flock(lock, fcntl.LOCK_EX)
                 self.assertTrue(helper.pending(), "a partida que detém o gate não pode ser cancelada")
@@ -647,6 +661,77 @@ class SystemToolsHelperTests(unittest.TestCase):
                 claim.assert_not_called()
                 popen.assert_not_called()
             self.assertFalse((directory / "started").exists())
+
+    def test_initial_started_publication_is_atomic(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp)
+            def interrupted(path, *args, **kwargs):
+                with path.open("w") as stream:
+                    stream.write('{"pid":')
+                raise OSError("partida interrompida")
+            with mock.patch.object(Path, "write_text", interrupted):
+                with self.assertRaises(OSError):
+                    ui.atomic_helper_record(directory, {"pid": 1})
+            self.assertFalse((directory / "started").exists())
+            ui.atomic_helper_record(directory, {"pid": 1})
+            self.assertEqual(json.loads((directory / "started").read_text()), {"pid": 1})
+
+    @unittest.skipIf(os.name != "posix" or getattr(os, "geteuid", lambda: 0)() == 0, "usuário normal")
+    def test_setsid_descendant_outlives_engine_and_remains_supervised(self) -> None:
+        import pty
+        import signal
+        for cancel in (False, True):
+            with self.subTest(cancel=cancel), tempfile.TemporaryDirectory() as temp:
+                directory = Path(temp)
+                ready = directory / "escaped"
+                worker = ("import os,signal,time; os.setsid(); "
+                          "signal.signal(signal.SIGINT,signal.SIG_IGN); "
+                          "signal.signal(signal.SIGTERM,signal.SIG_IGN); "
+                          f"open({str(ready)!r},'w').write(str(os.getpid())); "
+                          f"time.sleep({60 if cancel else 2})")
+                engine = directory / "fake.sh"
+                engine.write_text(f"{shlex.quote(sys.executable)} -c {shlex.quote(worker)} &\nexit 0\n")
+                (directory / "request.json").write_text(json.dumps({"schema": "hubicg.station.system-tools/1",
+                    "tools": ["git"], "engine": str(engine), "repoDir": str(directory / "clone")}))
+                pid, master = pty.fork()
+                if pid == 0:
+                    os.execv(sys.executable, [sys.executable, str(LINUX / "hubicg_station_ui.py"),
+                                             "--system-tools-helper", str(directory)])
+                escaped = None
+                try:
+                    deadline = time.monotonic() + 10
+                    while not ready.exists() and time.monotonic() < deadline:
+                        time.sleep(0.05)
+                    self.assertTrue(ready.exists())
+                    escaped = int(ready.read_text())
+                    record = json.loads((directory / "started").read_text())
+                    self.assertNotEqual(os.getsid(escaped), record["sid"])
+                    helper = ui.SystemToolsHelper(engine, lambda: str(directory / "clone"))
+                    helper.directory = directory
+                    time.sleep(0.2)  # original engine has exited, adopted setsid child still lives
+                    self.assertTrue(helper.pending())
+                    self.assertFalse((directory / "result.json").exists())
+                    if cancel:
+                        os.kill(pid, signal.SIGTERM)
+                    deadline = time.monotonic() + 12
+                    while not (directory / "result.json").exists() and time.monotonic() < deadline:
+                        time.sleep(0.05)
+                    self.assertTrue((directory / "result.json").exists())
+                    os.waitpid(pid, 0)
+                    self.assertFalse(helper.pending())
+                    self.assertEqual(json.loads((directory / "result.json").read_text())["exitCode"],
+                                     130 if cancel else 0)
+                    stat = Path(f"/proc/{escaped}/stat")
+                    if stat.exists():
+                        self.assertEqual(stat.read_text().rsplit(") ", 1)[1].split()[0], "Z")
+                finally:
+                    for owned in (escaped, pid):
+                        if owned:
+                            try:
+                                os.kill(owned, signal.SIGKILL)
+                            except ProcessLookupError:
+                                pass
+                    os.close(master)
 
 
 if __name__ == "__main__":

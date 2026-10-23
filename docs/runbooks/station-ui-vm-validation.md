@@ -139,7 +139,8 @@ de alto contraste e confira que nada some.
      isso é a dependência do contrato, não defeito;
    - o `sudo` do apt pede a **sua senha no terminal do sistema**, nunca na interface. Se o motor pedir isso como
      pendência, ela aparece como "Permissão de administrador".
-     O botão abre um helper com TTY e o motor como usuário normal, limitado a `--only git,gh`,
+     O botão abre um helper com TTY e o motor como usuário normal, limitado às etapas selecionadas
+     da lista permitida `git,gh` (Git-only executa somente Git; GH-only somente GH),
      sem `--json`/`--non-interactive`. Somente o motor executa sudo nas operações de sistema;
      a interface e o motor inteiro não são elevados. Logs e configuração desse ciclo ficam
      num diretório privado `hubicg-system-tools-*` temporário, preservado para diagnóstico.
@@ -148,8 +149,14 @@ de alto contraste e confira que nada some.
      verificar de novo deve consultar as versões reais, sem considerar o botão OK como sucesso.
      Confira também cancelamento/fechamento do terminal e preservação de arquivos APT divergentes.
      O grupo foreground do motor é separado da GUI e do supervisor. A conclusão só libera
-     novo ciclo após verificar que não há descendentes vivos; morte abrupta do supervisor é
-     reconciliada pelo grupo registrado, preservando os logs. Se o terminal não iniciar o helper
+     novo ciclo após verificar que não há descendentes vivos. O supervisor Linux é subreaper:
+     acompanha órfãos e processos que usem `setsid`, e sinaliza identidades via `pidfd`, sem buscar
+     nomes de processos. Processos privilegiados que recusem sinais mantêm a etapa pendente.
+     Se houver morte abrupta do supervisor após autorizar o motor, sem recibo de término, a GUI
+     não pode provar ausência de descendentes privilegiados e mantém bloqueio explícito; preserve
+     os logs e reinicie o Linux antes de tentar novamente. Um boot diferente comprova o término
+     dos processos antigos. Não reinicie só a GUI para contornar essa pendência.
+     Se o terminal não iniciar o helper
      em 60 segundos, a próxima verificação cancela a partida sob bloqueio de arquivo;
      um helper tardio reconhece o cancelamento e não executa o motor.
      **Aceite visual em VM real pendente:** testes com fakes/WSL não homologam esta etapa.

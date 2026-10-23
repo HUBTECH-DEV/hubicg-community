@@ -545,6 +545,15 @@ def system_tools_group_alive(record: dict[str, Any], *, exclude: int | None = No
 
 
 def claim_system_tools_terminal() -> tuple[dict[str, Any], int]:
+    import ctypes
+    # Linux adopts orphan descendants here even when sudo/setsid changes their session.
+    libc = ctypes.CDLL(None, use_errno=True)
+    if libc.prctl(36, 1, 0, 0, 0) != 0:  # PR_SET_CHILD_SUBREAPER
+        raise OSError(ctypes.get_errno(), "Não foi possível supervisionar descendentes")
+    descriptor = os.pidfd_open(os.getpid())
+    os.close(descriptor)
+    if not hasattr(signal, "pidfd_send_signal"):
+        raise OSError("Sinalização por identidade de processo indisponível")
     previous = os.tcgetpgrp(0)
     if os.getpgrp() != os.getpid():
         os.setpgid(0, 0)
@@ -554,8 +563,63 @@ def claim_system_tools_terminal() -> tuple[dict[str, Any], int]:
     finally:
         signal.signal(signal.SIGTTOU, old)
     start = Path(f"/proc/{os.getpid()}/stat").read_text().rsplit(") ", 1)[1].split()[19]
-    return {"pid": os.getpid(), "start": start, "pgid": os.getpgrp(), "sid": os.getsid(0),
+    return {"pid": os.getpid(), "start": start, "armed": False, "pgid": os.getpgrp(), "sid": os.getsid(0),
             "bootId": Path("/proc/sys/kernel/random/boot_id").read_text().strip()}, previous
+
+
+def system_tools_descendants() -> dict[int, str]:
+    """Walk kernel child lists, including threads and orphans adopted by the subreaper."""
+    found: dict[int, str] = {}
+    pending = [os.getpid()]
+    seen: set[int] = set()
+    while pending:
+        parent = pending.pop()
+        if parent in seen:
+            continue
+        seen.add(parent)
+        try:
+            for task in Path(f"/proc/{parent}/task").iterdir():
+                for raw in (task / "children").read_text().split():
+                    pid = int(raw)
+                    try:
+                        fields = Path(f"/proc/{pid}/stat").read_text().rsplit(") ", 1)[1].split()
+                    except FileNotFoundError:
+                        continue
+                    if fields[0] != "Z":
+                        found[pid] = fields[19]
+                        pending.append(pid)
+        except FileNotFoundError:
+            continue
+    return found
+
+
+def atomic_helper_record(directory: Path, record: dict[str, Any]) -> None:
+    temporary = directory / "started.tmp"
+    temporary.write_text(json.dumps(record), encoding="utf-8")
+    temporary.replace(directory / "started")
+
+
+def signal_helper_descendants(signum: int) -> None:
+    for pid, start in system_tools_descendants().items():
+        descriptor = None
+        try:
+            descriptor = os.pidfd_open(pid)
+            fields = Path(f"/proc/{pid}/stat").read_text().rsplit(") ", 1)[1].split()
+            if fields[19] == start:
+                signal.pidfd_send_signal(descriptor, signum)
+        except (ProcessLookupError, FileNotFoundError, PermissionError):
+            # A privileged operation we cannot signal remains supervised and blocks the GUI.
+            continue
+        finally:
+            if descriptor is not None:
+                os.close(descriptor)
+
+
+def helper_tools(request: dict[str, Any]) -> list[str]:
+    tools = request.get("tools")
+    if not isinstance(tools, list) or not tools or any(tool not in ("git", "gh") for tool in tools):
+        raise ValueError("Etapas externas não autorizadas")
+    return [tool for tool in ("git", "gh") if tool in tools]
 
 
 def system_tools_child(directory: Path, ready_fd: int) -> int:
@@ -567,7 +631,7 @@ def system_tools_child(directory: Path, ready_fd: int) -> int:
     if ready != b"1":
         return 130
     request = json.loads((directory / "request.json").read_text())
-    command = ["bash", str(Path(request["engine"]).resolve()), "--only", "git,gh",
+    command = ["bash", str(Path(request["engine"]).resolve()), "--only", ",".join(helper_tools(request)),
                "--repo-dir", str(Path(request["repoDir"]).resolve()),
                "--config-dir", str(directory / "config"), "--log-file", str(directory / "engine.jsonl")]
     os.execvpe(command[0], command, os.environ)
@@ -593,6 +657,7 @@ def run_system_tools_helper(directory: Path) -> int:
         request = json.loads(request_file.read_text(encoding="utf-8"))
         if request.get("schema") != "hubicg.station.system-tools/1":
             return code
+        helper_tools(request)
         import fcntl
         with (directory / "launch.lock").open("a") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
@@ -600,8 +665,9 @@ def run_system_tools_helper(directory: Path) -> int:
                 return code
             record, previous_group = claim_system_tools_terminal()
             # Publish the group before any child exists; lock excludes stale-launch recovery.
-            with (directory / "started").open("x") as stream:
-                json.dump(record, stream)
+            if (directory / "started").exists():
+                return code
+            atomic_helper_record(directory, record)
         def interrupt(signum: int, frame: Any) -> None:
             raise KeyboardInterrupt
         for signum in (signal.SIGTERM, signal.SIGHUP):
@@ -614,9 +680,8 @@ def run_system_tools_helper(directory: Path) -> int:
         finally:
             os.close(ready_read)
         record["pgid"] = child.pid
-        pending_record = directory / "started.tmp"
-        pending_record.write_text(json.dumps(record), encoding="utf-8")
-        pending_record.replace(directory / "started")
+        record["armed"] = True
+        atomic_helper_record(directory, record)
         old = signal.signal(signal.SIGTTOU, signal.SIG_IGN)
         try:
             os.tcsetpgrp(0, child.pid)
@@ -626,7 +691,7 @@ def run_system_tools_helper(directory: Path) -> int:
         os.close(ready_write)
         ready_write = None
         code = child.wait()
-        while system_tools_group_alive(record, exclude=os.getpid()):
+        while system_tools_descendants():
             time.sleep(0.1)
         return code
     except KeyboardInterrupt:
@@ -635,15 +700,17 @@ def run_system_tools_helper(directory: Path) -> int:
             for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
                 signal.signal(sig, signal.SIG_IGN)
             for sig in (signal.SIGINT, signal.SIGTERM):
-                os.killpg(record["pgid"], sig)
+                signal_helper_descendants(sig)
                 deadline = time.monotonic() + 3
-                while system_tools_group_alive(record, exclude=os.getpid()) and time.monotonic() < deadline:
+                while system_tools_descendants() and time.monotonic() < deadline:
                     time.sleep(0.1)
-                if not system_tools_group_alive(record, exclude=os.getpid()):
+                if not system_tools_descendants():
                     break
-            if system_tools_group_alive(record, exclude=os.getpid()):
-                os.killpg(record["pgid"], signal.SIGKILL)
-                while system_tools_group_alive(record, exclude=os.getpid()):
+            if system_tools_descendants():
+                signal_helper_descendants(signal.SIGKILL)
+                while system_tools_descendants():
+                    # Privileged descendants may reject user signals: remain pending, never fake completion.
+                    signal_helper_descendants(signal.SIGKILL)
                     time.sleep(0.1)
             if child is not None:
                 child.wait()
@@ -665,7 +732,7 @@ def run_system_tools_helper(directory: Path) -> int:
             signal.signal(signum, handler)
         # Keep logs/state for diagnosis; never remove a live helper's directory.
         result = directory / "result.json"
-        if not result.exists() and (record is None or not system_tools_group_alive(record, exclude=os.getpid())):
+        if not result.exists() and not system_tools_descendants():
             with result.open("x", encoding="utf-8") as stream:
                 json.dump({"exitCode": code}, stream)
 
@@ -673,9 +740,11 @@ def run_system_tools_helper(directory: Path) -> int:
 class SystemToolsHelper:
     """One pending external cycle; event command strings are never used here."""
 
-    def __init__(self, engine: Path, repo_dir: Callable[[], str]) -> None:
+    def __init__(self, engine: Path, repo_dir: Callable[[], str], selection: Callable[[], list[str]] = lambda: ["git", "gh"]) -> None:
         self.engine = engine.resolve()
         self.repo_dir = repo_dir
+        self.selection = selection
+        self.reason = "A etapa externa ainda está no terminal. Conclua ou cancele com Ctrl+C antes de verificar de novo."
         self.directory: Path | None = None
         self.process: subprocess.Popen | None = None
         self.launched_at = time.monotonic()
@@ -687,16 +756,31 @@ class SystemToolsHelper:
         if started.exists():
             try:
                 record = json.loads(started.read_text())
+                if Path("/proc/sys/kernel/random/boot_id").read_text().strip() != record["bootId"]:
+                    (self.directory / "result.json").write_text('{"exitCode":130}', encoding="utf-8")
+                    return False
+                try:
+                    fields = Path(f'/proc/{record["pid"]}/stat').read_text().rsplit(") ", 1)[1].split()
+                    if fields[0] != "Z" and fields[19] == record["start"]:
+                        return True
+                except FileNotFoundError:
+                    pass
                 if system_tools_group_alive(record):
                     return True
             except (OSError, ValueError, KeyError):
+                return True
+            if not (self.directory / "result.json").exists() and record.get("armed"):
+                self.reason = ("A supervisão externa foi perdida sem comprovar o término de todos os descendentes. "
+                               "Nenhum novo motor será iniciado. Preserve os logs; reinicie o Linux para encerrar "
+                               "com segurança processos privilegiados não verificáveis antes de tentar novamente.")
                 return True
             if not (self.directory / "result.json").exists():
                 (self.directory / "result.json").write_text('{"exitCode":130}', encoding="utf-8")
             return False
         if (self.directory / "result.json").exists():
             return False
-        if time.monotonic() - self.launched_at > 60:
+        if (time.monotonic() - self.launched_at > 60 or
+                (self.process is not None and self.process.poll() not in (None, 0))):
             import fcntl
             with (self.directory / "launch.lock").open("a") as lock:
                 try:
@@ -708,18 +792,21 @@ class SystemToolsHelper:
                     (self.directory / "result.json").write_text('{"exitCode":4}', encoding="utf-8")
                     return False
             return True
-        if self.process and self.process.poll() not in (None, 0) and not (self.directory / "started").exists():
-            (self.directory / "result.json").write_text('{"exitCode":4}', encoding="utf-8")
-            return False
         return True
 
     def preview(self) -> str:
-        return shlex.join(["bash", str(self.engine), "--only", "git,gh"]) + " (logs e estado temporários próprios)"
+        return shlex.join(["bash", str(self.engine), "--only", ",".join(self.authorized_tools())]) + " (logs e estado temporários próprios)"
+
+    def authorized_tools(self) -> list[str]:
+        return [tool for tool in ("git", "gh") if tool in self.selection()]
 
     def launch(self, *, here: bool = False) -> bool:
         if self.pending():
             return True
         if os.geteuid() == 0:
+            return False
+        tools = self.authorized_tools()
+        if not tools:
             return False
         # Check availability before creating a pending request.
         if not here and terminal_command([]) is None:
@@ -727,6 +814,7 @@ class SystemToolsHelper:
         self.directory = Path(tempfile.mkdtemp(prefix="hubicg-system-tools-"))
         self.launched_at = time.monotonic()
         request = {"schema": "hubicg.station.system-tools/1", "engine": str(self.engine),
+                   "tools": tools,
                    "repoDir": str(Path(self.repo_dir()).expanduser().resolve())}
         with (self.directory / "request.json").open("x", encoding="utf-8") as stream:
             json.dump(request, stream)
@@ -1510,12 +1598,12 @@ class Wizard:
         self.repo_dir = ""
         self.session = Session()
         self.last: RunState | None = None
-        self.system_tools = SystemToolsHelper(self.engine, lambda: self.repo_dir)
+        self.system_tools = SystemToolsHelper(self.engine, lambda: self.repo_dir, lambda: self.selection)
         self.frontend.system_tools = self.system_tools
 
     def apply(self, answers: dict[str, Any] | None = None, new_session: bool = False) -> tuple[RunState, str]:
         if self.system_tools.pending():
-            self.frontend.fatal("A etapa Git/GH ainda está no terminal externo. Conclua ou interrompa com Ctrl+C nesse terminal antes de verificar de novo. A instalação continua pendente.")
+            self.frontend.fatal(self.system_tools.reason)
             assert self.last is not None
             return self.last, "Etapa externa pendente; nenhum novo motor foi iniciado."
         if new_session:
