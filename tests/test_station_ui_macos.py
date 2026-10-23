@@ -46,7 +46,7 @@ class MacEntryTests(unittest.TestCase):
                      "integração isolada requer POSIX, Node existente e HUBICG_STATION_ENGINE_TESTS=1")
 class MacEngineIntegrationTests(unittest.TestCase):
     def test_canonical_events_answers_and_rerun_reach_m1(self) -> None:
-        from test_station_installer import Maquina
+        from tests.test_station_installer import Maquina
         machine = Maquina("mac")
         self.addCleanup(machine.fechar)
         machine.instalar("git")
@@ -90,7 +90,7 @@ process.stdout.write(JSON.stringify({code: state.exitCode, status: state.status,
 @unittest.skipUnless(os.name == "posix" and shutil.which("bash"), "adaptador de processos requer POSIX")
 class MacProcessTests(unittest.TestCase):
     def test_native_check_fixture_obeys_event_schema(self) -> None:
-        from test_station_simulator import validate_event
+        from tests.test_station_simulator import validate_event
         result = subprocess.run(["bash", str(ROOT / "tests/fixtures/station/macos-check-engine.sh")],
                                 capture_output=True, text=True, timeout=10)
         self.assertEqual(result.returncode, 5)
