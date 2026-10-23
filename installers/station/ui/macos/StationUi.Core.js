@@ -22,7 +22,7 @@ var StationCore = (function () {
         } else if (e.type === 'progress') {
             s.progress = e.message || '';
         } else if (e.type === 'log') {
-            s.logs.push(e.message || '');
+            s.logs.push({status: e.status, message: e.message || ''});
         } else if (e.type === 'action_required') {
             var a = {id: d.id, kind: d.kind, message: e.message || '', step: step,
                 answers: d.answers || [], command: d.command, url: d.url, code: d.code,
@@ -54,7 +54,7 @@ var StationCore = (function () {
         else if (s.exitCode === 0 && code !== 0) {
             s.exitCode = code < 0 || code === 130 ? 130 : 1;
         }
-        if (s.exitCode === 0 && Object.keys(s.status).some(function (key) {
+        if ([0, 3, 5].indexOf(s.exitCode) >= 0 && Object.keys(s.status).some(function (key) {
             return !texts.statuses[s.status[key]] || texts.statuses[s.status[key]].group === 'failed';
         })) { s.exitCode = 1; }
         s.ended = true; s.blocking = null;
@@ -105,8 +105,14 @@ var StationCore = (function () {
             lines.push((texts.steps[key] || key) + ': ' + (info ? info.label : 'Falhou: status desconhecido') +
                 '\n' + (s.messages[key] || ''));
         });
+        s.logs.filter(function (entry) { return entry.status === 'warn' || entry.status === 'error'; })
+            .forEach(function (entry) { lines.push(logText(entry)); });
         if (s.logFile) { lines.push('Log desta execução: ' + s.logFile); }
         return lines.join('\n\n');
+    }
+    function logText(entry) {
+        var label = {info: 'Informação', warn: 'Aviso', error: 'Erro'};
+        return (label[entry.status] || entry.status || 'Log') + ': ' + entry.message;
     }
     function environment(s) {
         var d = s.environment, lines = [d.os || '', d.osVersion || '', d.arch || ''];
@@ -118,7 +124,7 @@ var StationCore = (function () {
                 lines.push(key + ': ' + (typeof d[key] === 'object' ? JSON.stringify(d[key]) : String(d[key])));
             }
         });
-        return lines.concat(s.logs).join('\n');
+        return lines.concat(s.logs.map(logText)).join('\n');
     }
     return {state: state, apply: apply, complete: complete, selected: selected, args: args,
         valid: valid, merge: merge, summary: summary, environment: environment};

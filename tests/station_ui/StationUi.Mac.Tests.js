@@ -61,4 +61,23 @@ assert.strictEqual(s.blocking, null);
 core.apply(s, event(3, 'action_required', 'claude-cli-auth', 'action_required',
     {id: 'claude-auth-unverified', kind: 'run_in_terminal', command: 'claude auth status'}));
 assert.strictEqual(s.actions[0].command, 'claude auth status');
+// Avisos por arquivo do apply permanecem visíveis e com sua severidade.
+s = core.state();
+core.apply(s, {schema: 'hubicg.station.event/1', seq: 1, type: 'log', step: 'agents',
+    status: 'warn', message: 'Agente editado preservado: exemplo.md', data: {}});
+core.apply(s, {schema: 'hubicg.station.event/1', seq: 2, type: 'log', step: 'agents',
+    status: 'error', message: 'Falha ao gravar manifesto', data: {}});
+assert(core.summary(s, texts).includes('Aviso: Agente editado preservado: exemplo.md'));
+assert(core.summary(s, texts).includes('Erro: Falha ao gravar manifesto'));
+assert(core.environment(s).includes('Aviso: Agente editado preservado: exemplo.md'));
+// Falha desconhecida prevalece sobre pendência/simulação, preservando interrupções.
+[0, 3, 5, 130, 2, 4].forEach(function (code) {
+    const run = core.state();
+    core.apply(run, event(1, 'step_end', 'git', 'future-status'));
+    core.apply(run, event(2, 'step_end', 'gh-auth', 'action_required'));
+    core.apply(run, event(3, 'run_end', '', '', {exitCode: code,
+        steps: {git: 'future-status', 'gh-auth': 'action_required'}}));
+    assert.strictEqual(core.complete(run, code, texts).exitCode, [0, 3, 5].includes(code) ? 1 : code);
+    assert(core.summary(run, texts).includes('Falhou: status desconhecido'));
+});
 console.log('M1 core: contract, actions, answers, summary, recovery and idempotent session OK');
