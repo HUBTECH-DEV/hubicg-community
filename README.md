@@ -27,6 +27,15 @@ and adaptive private history are roadmap items, not claims of this release.
 
 ## Install and use
 
+The source checkout also includes the [Windows/Linux station installer](installers/station/README.md)
+and its Windows WinForms and Linux zenity/kdialog/terminal interfaces (#146).
+It uses the public Community repository and exports agents from the verified
+public role library. Logins use the providers' official flows. Isolated tests
+use fake tools; complete installation and desktop login still require the
+[VM acceptance procedure](docs/runbooks/station-installer-vm-validation.md).
+The shell engine retains experimental macOS support; macOS GUI and full Mac
+acceptance are outside this integration. No package or release version changes.
+
 ```sh
 python -m venv .venv
 . .venv/bin/activate  # Windows: .venv\\Scripts\\activate
