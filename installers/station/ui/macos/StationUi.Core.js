@@ -61,7 +61,10 @@ var StationCore = (function () {
         return s;
     }
     function selected(s) {
-        return s.steps.filter(function (key) { return key !== 'environment' && s.status[key] !== 'unsupported'; });
+        var optional = ['codex-cli', 'codex-cli-auth', 'chatgpt-desktop', 'chatgpt-desktop-auth'];
+        return s.steps.filter(function (key) {
+            return key !== 'environment' && optional.indexOf(key) < 0 && s.status[key] !== 'unsupported';
+        });
     }
     function args(mode, only, repo, answers) {
         var result = ['--json', '--non-interactive'];

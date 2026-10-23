@@ -6,7 +6,7 @@ test:
 	python3 -m pytest
 
 station-test:
-	HUBICG_STATION_ENGINE_TESTS=1 python3 -m pytest tests/test_station_installer.py tests/test_station_public_agents.py tests/test_station_ui_linux.py tests/test_station_ui_windows.py tests/test_station_ui_macos.py tests/test_station_simulator.py
+	HUBICG_STATION_ENGINE_TESTS=1 python3 -m pytest tests/test_station_installer.py tests/test_station_openai_contract.py tests/test_station_public_agents.py tests/test_station_ui_linux.py tests/test_station_ui_windows.py tests/test_station_ui_macos.py tests/test_station_simulator.py
 
 check:
 	python3 -m compileall -q src scripts tests

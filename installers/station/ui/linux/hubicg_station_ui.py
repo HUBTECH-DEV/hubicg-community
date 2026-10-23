@@ -373,8 +373,10 @@ def write_answers_file(answers: dict[str, Any], directory: str | None = None) ->
 
 
 def default_selection(check: RunState) -> list[str]:
-    """Todas as etapas, menos environment (sempre roda) e as que nao se aplicam ao sistema."""
-    return [step for step in check.steps if step != "environment" and check.status.get(step) != "unsupported"]
+    """Selecao historica; capacidades OpenAI continuam disponiveis para escolha explicita."""
+    optional = {"codex-cli", "codex-cli-auth", "chatgpt-desktop", "chatgpt-desktop-auth"}
+    return [step for step in check.steps
+            if step != "environment" and step not in optional and check.status.get(step) != "unsupported"]
 
 
 # --- execucao do motor -----------------------------------------------------------------------------

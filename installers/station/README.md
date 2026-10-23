@@ -36,6 +36,11 @@ Use `--criar-atalho` to create a menu/desktop entry from the Linux launcher.
 
 Both engines support check and plan modes, official authentication, bounded
 CLI status probes, preserving edited files and repeatable installation.
+Four optional OpenAI steps are available by explicit `-Only` / `--only` IDs:
+`codex-cli`, `codex-cli-auth`, `chatgpt-desktop`, `chatgpt-desktop-auth`.
+Defaults are unchanged. Windows implements them; Linux/macOS report
+`unsupported` when selected. See the [OpenAI capability contract and official
+sources](../../docs/runbooks/station-openai-capabilities.md) before applying.
 Applying the engine may install Git, GitHub CLI and Claude tools, configure
 Git identity and write the chosen clone/Claude directories. Read the contract
 before applying. Linux reports Claude Desktop as unsupported. macOS shell

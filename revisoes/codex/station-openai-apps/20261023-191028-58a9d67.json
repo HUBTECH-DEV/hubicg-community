@@ -1,0 +1,6 @@
+{
+  "diff_analisado": true,
+  "veredito": "aprovado",
+  "resumo": "A mudança reforça o teste de resolução de caminhos no Windows, comparando a identidade física dos arquivos e diretórios. Exercita caminhos com espaços, componente ponto e alias 8.3 quando disponível, além de verificar que a variável de override permanece intacta. O diff fornecido não apresenta defeitos prováveis ou enfraquecimento das verificações existentes. A análise foi estática, sem execução de comandos ou leitura de arquivos.",
+  "findings": []
+}

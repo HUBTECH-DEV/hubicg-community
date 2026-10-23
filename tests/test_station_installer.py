@@ -76,6 +76,11 @@ class SchemaDeEventosTests(unittest.TestCase):
 
 @unittest.skipUnless(os.name != "nt" and shutil.which("awk"), "leitor POSIX awk")
 class JsonBashTests(unittest.TestCase):
+    def test_chatgpt_boolean_type(self):
+        for value in (False, True, 'true'):
+            r = self.parse(json.dumps({'schema': 'hubicg.station.answers/1', 'answers': {'chatgpt.loginConfirmed': value}}), 'chatgpt.loginConfirmed')
+            self.assertEqual(r.returncode, 0 if isinstance(value, bool) else 2, r.stderr)
+
     def parse(self, text, key="git.name"):
         return subprocess.run(["awk", "-v", "mode=answers", "-v", f"key={key}", "-f",
                                str(MOTOR_SH.with_name("json-read.awk"))], input=text,
@@ -126,6 +131,7 @@ class Maquina:
     def __init__(self, motor: str, **estado: object) -> None:
         self.motor = motor
         self.desktop_mode = "installed"
+        self.chatgpt_desktop_mode = "absent"
         self._tmp = tempfile.TemporaryDirectory()
         self.raiz = Path(self._tmp.name)
         self.bin = self.raiz / "bin"
@@ -208,6 +214,7 @@ class Maquina:
             "HOME": str(self.home),
             "SHELL": "/bin/zsh" if self.motor == "mac" else "/bin/bash",
             "HUBICG_STATION_TEST_DESKTOP": self.desktop_mode,
+            "HUBICG_STATION_TEST_CHATGPT_DESKTOP": self.chatgpt_desktop_mode,
             # Sem isto, o motor Windows junta ao PATH o PATH real do registro
             # depois de cada instalação e passa a enxergar as ferramentas reais.
             "HUBICG_STATION_TEST_ISOLATED": "1",
@@ -308,6 +315,27 @@ def fotografia(pasta: Path) -> dict[str, tuple[int, bytes]]:
 class CenariosDoMotor:
     motor = ""
     desktop_suportado = True
+
+    def test_openai_defaults_preservados(self) -> None:
+        m = self.maquina_pronta()
+        r = m.rodar(modo='check')
+        for step in ('codex-cli', 'codex-cli-auth', 'chatgpt-desktop', 'chatgpt-desktop-auth'):
+            self.assertEqual(r.status()[step], 'skipped', r)
+        self.assertFalse(any(c['tool'] == 'codex' for c in m.chamadas()))
+        self.assertFalse(any('9PLM9XGG6VKS' in c['args'] for c in m.chamadas()))
+
+    def test_openai_posix_explicitamente_unsupported(self) -> None:
+        if self.motor == 'ps1':
+            self.skipTest('Windows implements these capabilities')
+        m = self.maquina_pronta()
+        steps = ('codex-cli', 'codex-cli-auth', 'chatgpt-desktop', 'chatgpt-desktop-auth')
+        for mode in ('check', 'plan', 'apply'):
+            with self.subTest(mode=mode):
+                r = m.rodar('--only', ','.join(steps), modo=mode)
+                self.assertEqual(r.codigo, 0, r)
+                for step in steps:
+                    self.assertEqual(r.status()[step], 'unsupported', r)
+        self.assertEqual(mutacoes(m.chamadas()), [])
 
     def maquina(self, **estado: object) -> Maquina:
         m = Maquina(self.motor, **estado)
@@ -763,6 +791,185 @@ class CenariosDoMotor:
 @unittest.skipUnless(os.name == "nt" and shutil.which("powershell.exe"), "motor PowerShell roda no Windows")
 class MotorWindowsTests(CenariosDoMotor, unittest.TestCase):
     motor = "ps1"
+
+    def test_openai_check_plan_sem_mutacoes(self) -> None:
+        m = self.maquina_vazia()
+        steps = 'codex-cli,codex-cli-auth,chatgpt-desktop,chatgpt-desktop-auth'
+        for mode, expected in [('check', 'missing'), ('plan', 'would_install')]:
+            r = m.rodar('-Only', steps, modo=mode, respostas={'chatgpt.loginConfirmed': True})
+            self.assertEqual(r.codigo, 5, r)
+            self.assertEqual(r.status()['codex-cli'], expected, r)
+            self.assertEqual(r.status()['chatgpt-desktop'], expected, r)
+            self.assertEqual(r.status()['chatgpt-desktop-auth'], 'missing' if mode == 'check' else 'would_configure')
+            self.assert_contrato(r)
+        self.assertEqual(mutacoes(m.chamadas()), [])
+        self.assertFalse(m.config.exists())
+
+    def test_codex_instalacao_idempotente_auth_sem_segredos(self) -> None:
+        m = self.maquina_vazia()
+        r = m.rodar('-Only', 'codex-cli,codex-cli-auth')
+        self.assertEqual(r.status()['codex-cli'], 'installed', r)
+        self.assertEqual(m.ler_estado()['codex_installer_noninteractive'], '1')
+        self.assertEqual(r.status()['codex-cli-auth'], 'action_required', r)
+        action = r.acoes()[0]['data']
+        self.assertEqual((action['id'], action['kind'], action['command']), ('codex-login', 'run_in_terminal', 'codex login'))
+        self.assertNotIn('answers', action)
+        m.ajustar(codex_auth=True)
+        m.zerar_chamadas()
+        second = m.rodar('-Only', 'codex-cli,codex-cli-auth')
+        self.assertEqual(second.codigo, 0, second)
+        self.assertEqual(second.status()['codex-cli'], 'already')
+        self.assertEqual(second.fim('codex-cli-auth')['data']['evidence'], 'cli_status')
+        self.assertEqual(mutacoes(m.chamadas()), [])
+        for run in (r, second):
+            self.assertNotIn('synthetic-person', run.stdout + run.log.read_text(encoding='utf-8'))
+            self.assertNotIn('sk-proj-', run.stdout + run.log.read_text(encoding='utf-8'))
+            self.assert_contrato(run)
+
+    def test_codex_download_instalador_e_pos_verificacao_falham(self) -> None:
+        for state in ('codex_download_fail', 'codex_install_fail', 'codex_install_no_command'):
+            with self.subTest(state=state):
+                m = self.maquina_vazia()
+                m.ajustar(**{state: True})
+                r = m.rodar('-Only', 'codex-cli,codex-cli-auth')
+                self.assertEqual(r.codigo, 1, r)
+                self.assertEqual(r.status()['codex-cli'], 'failed', r)
+                self.assertEqual(r.status()['codex-cli-auth'], 'blocked', r)
+                self.assertFalse(any(c['tool'] == 'codex' and c['args'] == ['login'] for c in m.chamadas()))
+
+    def test_codex_status_inconclusivo_nao_autentica(self) -> None:
+        m = self.maquina_vazia()
+        m.instalar('codex')
+        m.ajustar(codex_auth_exit=2)
+        r = m.rodar('-Only', 'codex-cli-auth')
+        self.assertEqual(r.status()['codex-cli-auth'], 'action_required', r)
+        self.assertEqual([c['args'] for c in m.chamadas() if c['tool'] == 'codex'], [['login', 'status']])
+
+    def test_chatgpt_store_confirmacao_exclusiva_idempotente(self) -> None:
+        m = self.maquina_vazia()
+        r = m.rodar('-Only', 'chatgpt-desktop,chatgpt-desktop-auth', respostas={'desktop.loginConfirmed': True})
+        self.assertEqual(r.status()['chatgpt-desktop'], 'installed', r)
+        self.assertEqual(r.status()['chatgpt-desktop-auth'], 'action_required', r)
+        self.assertIn({'tool': 'winget', 'args': ['install', '--id', '9PLM9XGG6VKS', '-s', 'msstore',
+            '--silent', '--accept-package-agreements', '--accept-source-agreements', '--disable-interactivity']}, m.chamadas())
+        action = r.acoes()[0]['data']
+        self.assertEqual((action['id'], action['kind']), ('chatgpt-desktop-login-confirm', 'confirm'))
+        field = action['answers'][0]
+        self.assertEqual((field['key'], field['type'], field['required']), ('chatgpt.loginConfirmed', 'boolean', True))
+        self.assertNotIn('default', field)
+        pending = m.rodar('-Only', 'chatgpt-desktop-auth', respostas={'chatgpt.loginConfirmed': False})
+        self.assertEqual(pending.status()['chatgpt-desktop-auth'], 'action_required', pending)
+        done = m.rodar('-Only', 'chatgpt-desktop-auth', respostas={'chatgpt.loginConfirmed': True})
+        self.assertEqual(done.status()['chatgpt-desktop-auth'], 'configured', done)
+        self.assertEqual(done.fim('chatgpt-desktop-auth')['data']['evidence'], 'user_declared')
+        self.assertFalse(done.fim('chatgpt-desktop-auth')['data']['identityVerified'])
+        statefile = m.config / '.hubicg-station.json'
+        state = json.loads(statefile.read_text(encoding='utf-8'))
+        self.assertTrue(state['chatgptDesktopLoginConfirmedAt'])
+        self.assertIsNone(state['desktopLoginConfirmedAt'])
+        before = fotografia(m.config)
+        again = m.rodar('-Only', 'chatgpt-desktop,chatgpt-desktop-auth')
+        self.assertEqual(again.status()['chatgpt-desktop-auth'], 'already', again)
+        self.assertEqual(before, fotografia(m.config))
+        for run in (r, pending, done, again):
+            self.assert_contrato(run)
+
+    def test_chatgpt_ausente_falha_store_e_persistencia(self) -> None:
+        m = self.maquina_vazia()
+        for state in ('chatgpt_install_fail', 'chatgpt_install_no_registration'):
+            m.ajustar(chatgpt_install_fail=False, chatgpt_install_no_registration=False)
+            m.ajustar(**{state: True})
+            r = m.rodar('-Only', 'chatgpt-desktop,chatgpt-desktop-auth', respostas={'chatgpt.loginConfirmed': True})
+            self.assertEqual(r.status()['chatgpt-desktop'], 'failed', r)
+            self.assertEqual(r.status()['chatgpt-desktop-auth'], 'blocked', r)
+        m.chatgpt_desktop_mode = 'installed'
+        m.config.write_text('synthetic file prevents directory creation', encoding='utf-8')
+        r = m.rodar('-Only', 'chatgpt-desktop-auth', respostas={'chatgpt.loginConfirmed': True})
+        self.assertEqual(r.status()['chatgpt-desktop-auth'], 'failed', r)
+        self.assertEqual(r.codigo, 1, r)
+
+    def test_chatgpt_sem_winget_e_ack_nao_instala(self) -> None:
+        m = self.maquina()
+        r = m.rodar('-Only', 'chatgpt-desktop,chatgpt-desktop-auth')
+        self.assertEqual(r.status()['chatgpt-desktop'], 'action_required', r)
+        self.assertEqual(r.acoes()[0]['data']['id'], 'package-manager-missing')
+        self.assertEqual(r.status()['chatgpt-desktop-auth'], 'blocked', r)
+        r = m.rodar('-Only', 'chatgpt-desktop-auth', respostas={'chatgpt.loginConfirmed': True})
+        self.assertEqual(r.status()['chatgpt-desktop-auth'], 'blocked', r)
+        self.assertFalse(m.config.exists())
+
+    def test_chatgpt_resposta_tipo_invalido(self) -> None:
+        m = self.maquina()
+        r = m.rodar('-Only', 'chatgpt-desktop-auth', respostas={'chatgpt.loginConfirmed': 'true'})
+        self.assertEqual(r.codigo, 2, r)
+
+    def test_chatgpt_descoberta_inconclusiva_nao_instala_nem_aceita_ack(self) -> None:
+        m = self.maquina_vazia()
+        m.chatgpt_desktop_mode = 'unknown'
+        for mode in ('check', 'plan', 'apply'):
+            r = m.rodar('-Only', 'chatgpt-desktop,chatgpt-desktop-auth', modo=mode,
+                        respostas={'chatgpt.loginConfirmed': True})
+            self.assertEqual(r.status()['chatgpt-desktop'], 'failed', r)
+            self.assertEqual(r.fim('chatgpt-desktop')['data']['detection'], 'unknown')
+            self.assertEqual(r.status()['chatgpt-desktop-auth'], 'blocked' if mode == 'apply' else 'failed', r)
+        self.assertEqual(mutacoes(m.chamadas()), [])
+        self.assertFalse(m.config.exists())
+        m.chatgpt_desktop_mode = 'unknown_after_install'
+        r = m.rodar('-Only', 'chatgpt-desktop')
+        self.assertEqual(r.status()['chatgpt-desktop'], 'failed', r)
+        self.assertEqual(r.fim('chatgpt-desktop')['data']['detection'], 'unknown')
+
+    def test_chatgpt_negativa_revoga_timestamp_sem_afetar_claude(self) -> None:
+        m = self.maquina_vazia()
+        m.chatgpt_desktop_mode = 'installed'
+        m.config.mkdir()
+        statefile = m.config / '.hubicg-station.json'
+        statefile.write_text(json.dumps({'schemaVersion': '1.0', 'agents': {},
+            'desktopLoginConfirmedAt': '2026-10-01T00:00:00Z',
+            'chatgptDesktopLoginConfirmedAt': '2026-10-02T00:00:00Z'}), encoding='utf-8')
+        before = fotografia(m.config)
+        for mode, expected in (('check', 'missing'), ('plan', 'would_configure')):
+            r = m.rodar('-Only', 'chatgpt-desktop-auth', modo=mode, respostas={'chatgpt.loginConfirmed': False})
+            self.assertEqual(r.status()['chatgpt-desktop-auth'], expected, r)
+            self.assertEqual(before, fotografia(m.config))
+        r = m.rodar('-Only', 'chatgpt-desktop-auth', respostas={'chatgpt.loginConfirmed': False})
+        self.assertEqual(r.status()['chatgpt-desktop-auth'], 'action_required', r)
+        state = json.loads(statefile.read_text(encoding='utf-8'))
+        self.assertNotIn('chatgptDesktopLoginConfirmedAt', state)
+        self.assertEqual(state['desktopLoginConfirmedAt'], '2026-10-01T00:00:00Z')
+        again = m.rodar('-Only', 'chatgpt-desktop-auth')
+        self.assertEqual(again.status()['chatgpt-desktop-auth'], 'action_required', again)
+
+    def test_chatgpt_negativa_revoga_antes_de_dependencia_bloquear_auth(self) -> None:
+        m = self.maquina_vazia()
+        m.ajustar(chatgpt_install_fail=True)
+        m.config.mkdir()
+        statefile = m.config / '.hubicg-station.json'
+        statefile.write_text(json.dumps({'schemaVersion': '1.0', 'agents': {},
+            'desktopLoginConfirmedAt': '2026-10-01T00:00:00Z',
+            'chatgptDesktopLoginConfirmedAt': '2026-10-02T00:00:00Z'}), encoding='utf-8')
+        before = fotografia(m.config)
+        selection = 'chatgpt-desktop,chatgpt-desktop-auth'
+        for mode in ('check', 'plan'):
+            r = m.rodar('-Only', selection, modo=mode, respostas={'chatgpt.loginConfirmed': False})
+            self.assertEqual(r.codigo, 5, r)
+            self.assertEqual(before, fotografia(m.config))
+        # A response for an unselected auth step must not revoke its state.
+        unselected = m.rodar('-Only', 'chatgpt-desktop', respostas={'chatgpt.loginConfirmed': False})
+        self.assertEqual(unselected.status()['chatgpt-desktop'], 'failed', unselected)
+        self.assertEqual(before, fotografia(m.config))
+        failed = m.rodar('-Only', selection, respostas={'chatgpt.loginConfirmed': False})
+        self.assertEqual(failed.status()['chatgpt-desktop'], 'failed', failed)
+        self.assertEqual(failed.status()['chatgpt-desktop-auth'], 'blocked', failed)
+        state = json.loads(statefile.read_text(encoding='utf-8'))
+        self.assertNotIn('chatgptDesktopLoginConfirmedAt', state)
+        self.assertEqual(state['desktopLoginConfirmedAt'], '2026-10-01T00:00:00Z')
+        m.ajustar(chatgpt_install_fail=False)
+        fixed = m.rodar('-Only', selection)
+        self.assertEqual(fixed.status()['chatgpt-desktop'], 'installed', fixed)
+        self.assertEqual(fixed.status()['chatgpt-desktop-auth'], 'action_required', fixed)
+        self.assertEqual(fixed.acoes()[0]['data']['id'], 'chatgpt-desktop-login-confirm')
+        self.assertNotIn('chatgptDesktopLoginConfirmedAt', json.loads(statefile.read_text(encoding='utf-8')))
 
     def test_gh_stderr_eof_nao_remove_prazo(self) -> None:
         # Load only the function under test, never execute a real engine/login.

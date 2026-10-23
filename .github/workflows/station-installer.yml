@@ -25,4 +25,4 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install pytest
       - name: Engines, public artifacts and interfaces with fakes
-        run: python -m pytest tests/test_station_installer.py tests/test_station_public_agents.py tests/test_station_ui_windows.py tests/test_station_ui_linux.py tests/test_station_simulator.py
+        run: python -m pytest tests/test_station_installer.py tests/test_station_openai_contract.py tests/test_station_public_agents.py tests/test_station_ui_windows.py tests/test_station_ui_linux.py tests/test_station_simulator.py
