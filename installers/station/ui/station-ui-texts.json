@@ -1,0 +1,221 @@
+{
+  "schema": "hubicg.station.ui-texts/1",
+  "language": "pt-BR",
+  "product": "Instalador da estação HubICG",
+  "eventWarning": "Relatório incompleto: {0} evento(s) ausente(s); {1} etapa(s) recuperada(s) do resumo do motor. Alguns detalhes podem estar indisponíveis. Confira o log antes de concluir.",
+  "welcome": {
+    "title": "Vamos preparar esta estação para o HubICG",
+    "body": [
+      "Este assistente conduz o instalador da estação: primeiro verifica o computador, depois instala e configura só o que faltar.",
+      "Ele instala o Git, o GitHub CLI, o Claude Code e os agentes HubICG, e clona o repositório HubICG Community.",
+      "Os logins usam sempre o fluxo oficial de cada ferramenta, no navegador ou no terminal. Você nunca digita senha ou token neste assistente.",
+      "Pode rodar de novo quando quiser: o que já estiver pronto aparece como “já estava”."
+    ]
+  },
+  "steps": {
+    "environment": "Verificação do ambiente",
+    "git": "Git",
+    "git-identity": "Identidade do Git (nome e e-mail)",
+    "gh": "GitHub CLI",
+    "gh-auth": "Login no GitHub",
+    "repo": "Repositório HubICG Community",
+    "claude-cli": "Claude Code (linha de comando)",
+    "claude-cli-auth": "Login no Claude Code",
+    "claude-desktop": "Claude Desktop",
+    "claude-desktop-auth": "Login no Claude Desktop",
+    "agents": "Agentes HubICG"
+  },
+  "authPreview": {
+    "gh-auth": "GitHub: o GitHub CLI abre a página oficial de login. Você digita lá o código que este assistente mostrar.",
+    "claude-cli-auth": "Claude Code: abrimos um terminal com o comando oficial “claude auth login”, que leva você ao navegador.",
+    "claude-desktop-auth": "Claude Desktop: você entra pelo próprio aplicativo e confirma aqui quando terminar.",
+    "git-identity": "Git: pedimos o nome e o e-mail que vão assinar os seus commits. Não é login."
+  },
+  "statuses": {
+    "checked": {
+      "label": "Verificado",
+      "group": "ok"
+    },
+    "already": {
+      "label": "Já estava",
+      "group": "ok"
+    },
+    "installed": {
+      "label": "Instalado agora",
+      "group": "done"
+    },
+    "updated": {
+      "label": "Atualizado agora",
+      "group": "done"
+    },
+    "configured": {
+      "label": "Configurado agora",
+      "group": "done"
+    },
+    "unsupported": {
+      "label": "Não se aplica a este sistema",
+      "group": "ok"
+    },
+    "skipped": {
+      "label": "Não selecionado",
+      "group": "ok"
+    },
+    "missing": {
+      "label": "Falta instalar ou configurar",
+      "group": "pending"
+    },
+    "would_install": {
+      "label": "Seria instalado",
+      "group": "pending"
+    },
+    "would_configure": {
+      "label": "Seria configurado",
+      "group": "pending"
+    },
+    "would_update": {
+      "label": "Seria atualizado",
+      "group": "pending"
+    },
+    "action_required": {
+      "label": "Depende de você",
+      "group": "action"
+    },
+    "blocked": {
+      "label": "Aguardando etapa anterior",
+      "group": "action"
+    },
+    "failed": {
+      "label": "Falhou",
+      "group": "failed"
+    }
+  },
+  "unknownStatus": "Situação desconhecida ({0}); tratada como falha",
+  "groups": {
+    "done": "Instalado ou configurado agora",
+    "ok": "Já estava pronto ou não se aplica",
+    "pending": "Falta instalar ou configurar",
+    "action": "Depende de você",
+    "failed": "Falhou"
+  },
+  "exitCodes": {
+    "0": "Tudo pronto. Nada ficou pendente.",
+    "1": "Pelo menos uma etapa falhou. Veja o motivo de cada uma e o log.",
+    "2": "O assistente chamou o instalador de um jeito que ele não reconhece. Isso é um defeito do assistente: envie o log para a equipe do HubICG.",
+    "3": "Faltam algumas coisas que só você pode fazer. O assistente vai guiar uma por uma.",
+    "4": "Este sistema ou esta versão do shell não é suportada pelo instalador. Nada foi alterado.",
+    "5": "A verificação encontrou o que instalar ou configurar.",
+    "130": "A execução foi interrompida. Pode rodar de novo: o que já foi feito não se repete.",
+    "unknown": "O instalador terminou de um jeito inesperado (código {0})."
+  },
+  "kinds": {
+    "input": {
+      "title": "Informação necessária",
+      "guide": "O instalador precisa destes dados para continuar."
+    },
+    "confirm": {
+      "title": "Confirmação",
+      "guide": "O instalador precisa da sua decisão para continuar."
+    },
+    "browser_code": {
+      "title": "Login no navegador",
+      "guide": "Abra a página indicada, digite o código mostrado e autorize. O instalador segue sozinho quando você terminar."
+    },
+    "run_in_terminal": {
+      "title": "Comando no terminal",
+      "guide": "Este passo usa o comando oficial da ferramenta num terminal. Rode o comando, siga as instruções dele e volte aqui."
+    },
+    "external": {
+      "title": "Ação fora deste computador",
+      "guide": "Isto depende de algo fora da máquina. Quando estiver resolvido, verifique de novo."
+    }
+  },
+  "actions": {
+    "git-identity": {
+      "title": "Identidade do Git",
+      "guide": "O Git grava o seu nome e o seu e-mail em cada commit. Eles vão para a configuração global do Git deste usuário. Isto não é login e não pede senha."
+    },
+    "git-system-cert-store": {
+      "title": "Certificados da rede corporativa",
+      "guide": "A sua rede inspeciona o tráfego TLS. Para o Git confiar nos mesmos certificados que o Windows, ele passa a usar o repositório de certificados do sistema. A verificação TLS continua ligada."
+    },
+    "gh-login": {
+      "title": "Login no GitHub",
+      "guide": "O GitHub CLI usa o login oficial do GitHub. Você confere o código, digita na página do GitHub e autoriza o acesso. Nenhuma senha passa por este assistente."
+    },
+    "repo-access": {
+      "title": "Acesso ao repositório",
+      "guide": "Não foi possível consultar o repositório público HubICG Community. Confira a conexão e o acesso ao GitHub e verifique de novo."
+    },
+    "claude-login": {
+      "title": "Login no Claude Code",
+      "guide": "O comando oficial “claude auth login” abre o navegador para você entrar na sua conta Claude. Se ele pedir, cole no terminal o código que o navegador mostrar. Ao terminar, volte aqui."
+    },
+    "claude-auth-unverified": {
+      "title": "Conferir o login do Claude Code",
+      "guide": "O instalador não conseguiu confirmar se o Claude Code está com login ativo, então não abriu o login sozinho. Rode o comando num terminal para conferir; se ele mostrar que falta entrar, siga as instruções dele. Depois, volte aqui."
+    },
+    "claude-path": {
+      "title": "Comando claude no PATH",
+      "guide": "O Claude Code fica em ~/.local/bin, que ainda não está no PATH. Com a sua permissão, o instalador inclui essa pasta no perfil do seu shell."
+    },
+    "desktop-login-confirm": {
+      "title": "Login no Claude Desktop",
+      "guide": "Abra o Claude Desktop, entre com a sua conta pelo próprio aplicativo e confirme aqui. Este assistente não vê nem guarda nada do seu login."
+    },
+    "package-manager-missing": {
+      "title": "Gerenciador de pacotes",
+      "guide": "Falta o gerenciador de pacotes que o instalador usa. Instale-o seguindo a orientação abaixo e verifique de novo."
+    },
+    "privilege-required": {
+      "title": "Permissão de administrador",
+      "guide": "Este passo precisa de sudo. Se houver um comando abaixo, abra o terminal pelo botão: a senha será pedida pelo sistema nesse terminal. Para interromper a ação externa, use Ctrl+C nele. Depois volte e verifique de novo. Sem sudo disponível, peça ajuda a quem administra o computador."
+    }
+  },
+  "environment": {
+    "os": "Sistema",
+    "shell": "Shell",
+    "admin": "Administrador",
+    "sudo": "sudo",
+    "packageManager": "Gerenciador de pacotes",
+    "diskFreeGB": "Espaço livre",
+    "proxy": "Proxy",
+    "tls": "Conexão segura (TLS)",
+    "tools": "Ferramenta",
+    "network": "Acesso a",
+    "yes": "Sim",
+    "no": "Não",
+    "none": "Nenhum",
+    "absentTool": "Ausente: será instalado",
+    "notMeasured": "Não medido",
+    "osNames": {
+      "windows": "Windows",
+      "linux": "Linux",
+      "macos": "macOS"
+    },
+    "verdicts": {
+      "direct": "Direta",
+      "inspected": "Inspecionada pela rede corporativa",
+      "suspected": "Possível inspeção",
+      "unreachable": "Sem acesso",
+      "skipped": "Não testado"
+    },
+    "sudoValues": {
+      "passwordless": "Disponível, sem pedir senha",
+      "password": "Disponível; vai pedir a sua senha no terminal do sistema",
+      "absent": "Indisponível"
+    },
+    "explain": {
+      "noPackageManager": "Sem gerenciador de pacotes, o instalador não consegue instalar o Git nem o GitHub CLI. Ele vai indicar o que instalar.",
+      "sudoAbsent": "Sem sudo, os pacotes do sistema não podem ser instalados por este usuário. Peça ajuda a quem administra o computador.",
+      "lowDisk": "Pouco espaço livre. O clone e as ferramentas precisam de alguns gigabytes.",
+      "proxy": "Há proxy configurado. As ferramentas vão usá-lo; a credencial, se houver, não é mostrada.",
+      "tls": {
+        "direct": "Conexão direta, com certificados públicos.",
+        "inspected": "A rede corporativa inspeciona o TLS (Netskope, Zscaler ou similar). O instalador indica o que configurar em cada ferramenta e nunca desliga a verificação.",
+        "suspected": "O certificado da rede não é de uma autoridade pública conhecida. Pode ser inspeção corporativa; confirme com a equipe de TI.",
+        "unreachable": "Não foi possível alcançar os servidores. Verifique a conexão, o proxy ou o firewall.",
+        "skipped": "Teste de rede não executado."
+      }
+    }
+  }
+}

@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hubtech.dev/schemas/station/station-event.schema.json",
+  "title": "StationEvent",
+  "description": "One line of the HubICG station installer engine output in JSON mode. Contract: docs/architecture/station-installer-engine.md.",
+  "type": "object",
+  "required": ["schema", "runId", "seq", "ts", "type", "step", "status", "message", "data"],
+  "properties": {
+    "schema": { "const": "hubicg.station.event/1" },
+    "runId": { "type": "string", "minLength": 1 },
+    "seq": { "type": "integer", "minimum": 1 },
+    "ts": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$" },
+    "type": {
+      "enum": ["run_start", "step_start", "progress", "log", "action_required", "action_resolved", "step_end", "run_end"]
+    },
+    "step": { "type": "string" },
+    "status": { "type": "string" },
+    "message": { "type": "string" },
+    "data": { "type": "object" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "type": { "const": "step_end" } } },
+      "then": {
+        "properties": {
+          "step": { "minLength": 1 },
+          "status": {
+            "enum": [
+              "checked", "already", "installed", "updated", "configured", "unsupported", "skipped",
+              "missing", "would_install", "would_configure", "would_update",
+              "action_required", "blocked", "failed"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "log" } } },
+      "then": { "properties": { "status": { "enum": ["info", "warn", "error"] } } }
+    },
+    {
+      "if": { "properties": { "type": { "const": "action_resolved" } } },
+      "then": {
+        "properties": {
+          "status": { "enum": ["completed", "timeout", "failed"] },
+          "data": { "required": ["id"] }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "action_required" } } },
+      "then": {
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["id", "kind", "blocking"],
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "kind": { "enum": ["input", "confirm", "browser_code", "run_in_terminal", "external"] },
+              "blocking": { "type": "boolean" },
+              "command": { "type": "string" },
+              "url": { "type": "string" },
+              "code": { "type": "string" },
+              "timeoutSeconds": { "type": "integer", "minimum": 1 },
+              "browserOpenedByTool": { "type": "boolean" },
+              "answers": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["key", "type", "label", "required"],
+                  "properties": {
+                    "key": { "type": "string", "pattern": "^[a-z]+(\\.[a-zA-Z]+)+$" },
+                    "type": { "enum": ["string", "email", "boolean"] },
+                    "label": { "type": "string" },
+                    "required": { "type": "boolean" },
+                    "default": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "run_start" } } },
+      "then": {
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["engine", "contract", "mode", "os", "interactive", "steps", "repoDir", "configDir", "logFile"],
+            "properties": {
+              "contract": { "const": 1 },
+              "mode": { "enum": ["check", "plan", "apply"] },
+              "os": { "enum": ["windows", "linux", "macos"] },
+              "steps": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "run_end" } } },
+      "then": {
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["exitCode", "steps"],
+            "properties": {
+              "exitCode": { "enum": [0, 1, 2, 3, 4, 5, 130] },
+              "steps": { "type": "object" }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

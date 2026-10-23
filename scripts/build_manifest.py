@@ -43,6 +43,17 @@ PATHS += sorted(
     for path in (ROOT / "src" / "hubicg" / "library").rglob("*.json")
 )
 
+# Pin the source-distributed station and its single public event contract.
+PATHS += sorted(
+    path.relative_to(ROOT).as_posix()
+    for path in (ROOT / "installers" / "station").rglob("*")
+    if path.is_file() and "__pycache__" not in path.parts
+)
+PATHS += [
+    "scripts/build_station_agents.py", ".github/workflows/station-installer.yml",
+    "docs/architecture/station-installer-engine.md", "docs/schemas/station-event.schema.json",
+]
+
 
 def content() -> str:
     lines = []
