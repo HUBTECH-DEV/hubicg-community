@@ -11,12 +11,12 @@ Nenhuma reimplementa lógica de instalação, e nenhuma tem campo de senha ou to
 |---|---|---|---|
 | Windows | W1, assistente WinForms no Windows PowerShell 5.1 | `windows/Instalar-HubICG-Estacao.cmd` | `../hubicg-station.ps1` |
 | Linux | L1, `zenity`; `kdialog` no KDE; terminal sem ambiente gráfico | `linux/hubicg-station.desktop` | `../hubicg-station.sh` |
-| macOS | fora deste recorte | sem GUI distribuída | motor shell experimental |
+| macOS | M1 experimental, diálogos AppleScript/JXA; validação visual pendente | `macos/Instalar-HubICG-Estacao.command` | `../hubicg-station.sh` |
 
 ## Arquivos
 
 ```text
-station-ui-texts.json        textos pt-BR das duas interfaces (etapas, status, pedidos, códigos de saída)
+station-ui-texts.json        textos pt-BR compartilhados (etapas, status, pedidos, códigos de saída)
 windows/
   Instalar-HubICG-Estacao.cmd  clique duplo: abre o assistente no PS 5.1 (-STA, ExecutionPolicy só do processo)
   HubICG-Station-UI.ps1        a tela (WinForms)
@@ -25,6 +25,12 @@ linux/
   hubicg-station.desktop       clique duplo enquanto estiver na pasta do instalador (%k)
   hubicg-station-ui.sh         lançador; --criar-atalho cria o atalho no menu e na área de trabalho
   hubicg_station_ui.py         núcleo + frentes zenity, kdialog e terminal (Python 3, só biblioteca padrão)
+macos/
+  Instalar-HubICG-Estacao.command  entrada de clique duplo, motor do mesmo clone por padrão
+  Instalar-HubICG-Estacao.applescript  entrada AppleScript alternativa (recebe a pasta macos)
+  HubICG-Station-UI.js         diálogos Standard Additions e execução via Foundation/JXA
+  StationUi.Core.js            estado, respostas e resumo pelo contrato /1
+  StationUi.Process.sh         adaptador bash 3.2 com cancelamento do grupo
 ```
 
 Os `.ps1` são UTF-8 **com BOM**: sem ele, o PowerShell 5.1 lê o arquivo como ANSI e um acento quebra uma string
@@ -91,6 +97,15 @@ Testes automatizados: `python -m unittest discover -s tests` (os do núcleo W1 r
 zenity, só em POSIX). Validação real em VM: [`docs/runbooks/station-ui-vm-validation.md`](../../../docs/runbooks/station-ui-vm-validation.md).
 
 ## Acessibilidade
+
+M1 usa somente componentes nativos do macOS; não exige Node, Python, Homebrew ou CLT para abrir
+a interface. A geração do export público continua sendo uma etapa separada do motor.
+`--engine` ou `HUBICG_STATION_ENGINE` permitem indicar um motor externo aprovado.
+`--headless-check` executa somente a verificação, retorna JSON e o código de resultado; não comprova
+interação visual, capturas ou login na sessão gráfica. M1 permanece **experimental, com validação
+visual pendente**; login Codex CLI não foi testado nesta rodada. Veja o
+[roteiro macOS](../../../docs/runbooks/station-ui-macos-validation.md).
+O workflow `station-macos.yml` verifica JXA/AppleScript, processos e fixture sem janelas ou instalação real.
 
 - Toda informação de situação está em texto, não só em cor; os controles têm nome acessível (lido pelo leitor de
   tela) e ordem de tabulação na ordem visual.

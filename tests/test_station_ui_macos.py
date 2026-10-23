@@ -41,6 +41,52 @@ class MacEntryTests(unittest.TestCase):
         self.assertNotIn("hiddenAnswer", frontend)
 
 
+@unittest.skipUnless(os.name == "posix" and shutil.which("node") and
+                     os.environ.get("HUBICG_STATION_ENGINE_TESTS") == "1",
+                     "integração isolada requer POSIX, Node existente e HUBICG_STATION_ENGINE_TESTS=1")
+class MacEngineIntegrationTests(unittest.TestCase):
+    def test_canonical_events_answers_and_rerun_reach_m1(self) -> None:
+        from test_station_installer import Maquina
+        machine = Maquina("mac")
+        self.addCleanup(machine.fechar)
+        machine.instalar("git")
+        reducer = r'''
+const fs = require('fs');
+const core = require(process.argv[1]);
+const texts = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const input = JSON.parse(fs.readFileSync(0, 'utf8'));
+const state = core.state();
+input.events.forEach(event => core.apply(state, event));
+core.complete(state, input.code, texts);
+process.stdout.write(JSON.stringify({code: state.exitCode, status: state.status,
+    summary: core.summary(state, texts), actions: state.actions, os: state.environment.os}));
+'''
+        for mode, answers, status, code in (
+            ("check", None, "missing", 5),
+            ("apply", None, "action_required", 3),
+            ("apply", {"git.name": "Pessoa Teste", "git.email": "teste@example.invalid"}, "configured", 0),
+            ("apply", None, "already", 0),
+        ):
+            with self.subTest(mode=mode, expected=status):
+                run = machine.rodar("--only", "git-identity", modo=mode, respostas=answers)
+                self.assertEqual(run.codigo, code, run)
+                reduced = subprocess.run(
+                    ["node", "-e", reducer, str(MAC / "StationUi.Core.js"),
+                     str(MAC.parent / "station-ui-texts.json")],
+                    input=json.dumps({"events": run.eventos, "code": run.codigo}),
+                    capture_output=True, text=True, timeout=30,
+                )
+                self.assertEqual(reduced.returncode, 0, reduced.stderr)
+                result = json.loads(reduced.stdout)
+                self.assertEqual(result["code"], code)
+                self.assertEqual(result["status"], run.status())
+                self.assertEqual(result["status"]["git-identity"], status)
+                self.assertEqual(result["os"], "macos")
+                if code == 3:
+                    self.assertEqual(result["actions"][0]["kind"], "input")
+                self.assertNotIn("Falhou: status desconhecido", result["summary"])
+
+
 @unittest.skipUnless(os.name == "posix" and shutil.which("bash"), "adaptador de processos requer POSIX")
 class MacProcessTests(unittest.TestCase):
     def test_native_check_fixture_obeys_event_schema(self) -> None:
