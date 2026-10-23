@@ -599,6 +599,19 @@ def atomic_helper_record(directory: Path, record: dict[str, Any]) -> None:
     temporary.replace(directory / "started")
 
 
+def system_tools_children_complete(child: subprocess.Popen | None) -> bool:
+    """Only ECHILD proves completion; /proc discovery can race orphan adoption."""
+    if child is not None and child.poll() is None:
+        return False
+    while True:
+        try:
+            pid, _ = os.waitpid(-1, os.WNOHANG)
+        except ChildProcessError:  # ECHILD, including all adopted descendants
+            return True
+        if pid == 0:
+            return False
+
+
 def signal_helper_descendants(signum: int) -> None:
     for pid, start in system_tools_descendants().items():
         descriptor = None
@@ -691,7 +704,13 @@ def run_system_tools_helper(directory: Path) -> int:
         os.close(ready_write)
         ready_write = None
         code = child.wait()
-        while system_tools_descendants():
+        # The original engine may leave adopted setsid descendants. Ctrl+C must reach us.
+        old = signal.signal(signal.SIGTTOU, signal.SIG_IGN)
+        try:
+            os.tcsetpgrp(0, os.getpgrp())
+        finally:
+            signal.signal(signal.SIGTTOU, old)
+        while not system_tools_children_complete(child):
             time.sleep(0.1)
         return code
     except KeyboardInterrupt:
@@ -702,13 +721,13 @@ def run_system_tools_helper(directory: Path) -> int:
             for sig in (signal.SIGINT, signal.SIGTERM):
                 signal_helper_descendants(sig)
                 deadline = time.monotonic() + 3
-                while system_tools_descendants() and time.monotonic() < deadline:
+                while not system_tools_children_complete(child) and time.monotonic() < deadline:
                     time.sleep(0.1)
-                if not system_tools_descendants():
+                if system_tools_children_complete(child):
                     break
-            if system_tools_descendants():
+            if not system_tools_children_complete(child):
                 signal_helper_descendants(signal.SIGKILL)
-                while system_tools_descendants():
+                while not system_tools_children_complete(child):
                     # Privileged descendants may reject user signals: remain pending, never fake completion.
                     signal_helper_descendants(signal.SIGKILL)
                     time.sleep(0.1)
@@ -732,7 +751,7 @@ def run_system_tools_helper(directory: Path) -> int:
             signal.signal(signum, handler)
         # Keep logs/state for diagnosis; never remove a live helper's directory.
         result = directory / "result.json"
-        if not result.exists() and not system_tools_descendants():
+        if not result.exists() and system_tools_children_complete(child):
             with result.open("x", encoding="utf-8") as stream:
                 json.dump({"exitCode": code}, stream)
 

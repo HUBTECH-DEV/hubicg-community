@@ -151,7 +151,10 @@ de alto contraste e confira que nada some.
      O grupo foreground do motor é separado da GUI e do supervisor. A conclusão só libera
      novo ciclo após verificar que não há descendentes vivos. O supervisor Linux é subreaper:
      acompanha órfãos e processos que usem `setsid`, e sinaliza identidades via `pidfd`, sem buscar
-     nomes de processos. Processos privilegiados que recusem sinais mantêm a etapa pendente.
+     nomes de processos. `/proc` serve para descoberta; a conclusão exige recolher filhos até
+     `waitpid` indicar `ECHILD`. Quando o motor termina, o supervisor retoma o foreground do
+     terminal, permitindo Ctrl+C durante a espera de descendentes em outras sessões.
+     Processos privilegiados que recusem sinais mantêm a etapa pendente.
      Se houver morte abrupta do supervisor após autorizar o motor, sem recibo de término, a GUI
      não pode provar ausência de descendentes privilegiados e mantém bloqueio explícito; preserve
      os logs e reinicie o Linux antes de tentar novamente. Um boot diferente comprova o término

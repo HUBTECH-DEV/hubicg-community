@@ -680,8 +680,8 @@ class SystemToolsHelperTests(unittest.TestCase):
     def test_setsid_descendant_outlives_engine_and_remains_supervised(self) -> None:
         import pty
         import signal
-        for cancel in (False, True):
-            with self.subTest(cancel=cancel), tempfile.TemporaryDirectory() as temp:
+        for cancel, missed_adoption in ((False, False), (True, False), (False, True)):
+            with self.subTest(cancel=cancel, missed_adoption=missed_adoption), tempfile.TemporaryDirectory() as temp:
                 directory = Path(temp)
                 ready = directory / "escaped"
                 worker = ("import os,signal,time; os.setsid(); "
@@ -695,6 +695,12 @@ class SystemToolsHelperTests(unittest.TestCase):
                     "tools": ["git"], "engine": str(engine), "repoDir": str(directory / "clone")}))
                 pid, master = pty.fork()
                 if pid == 0:
+                    if missed_adoption:
+                        # Simulate children/stat enumeration losing a just-adopted orphan.
+                        shim = (f"import sys; sys.path.insert(0,{str(LINUX)!r}); "
+                                "import hubicg_station_ui as ui; ui.system_tools_descendants=lambda: {}; "
+                                f"sys.exit(ui.main(['--system-tools-helper',{str(directory)!r}]))")
+                        os.execv(sys.executable, [sys.executable, "-c", shim])
                     os.execv(sys.executable, [sys.executable, str(LINUX / "hubicg_station_ui.py"),
                                              "--system-tools-helper", str(directory)])
                 escaped = None
@@ -712,7 +718,8 @@ class SystemToolsHelperTests(unittest.TestCase):
                     self.assertTrue(helper.pending())
                     self.assertFalse((directory / "result.json").exists())
                     if cancel:
-                        os.kill(pid, signal.SIGTERM)
+                        self.assertEqual(os.tcgetpgrp(master), pid, "foreground deve voltar ao supervisor")
+                        os.write(master, b"\x03")  # actual terminal-generated SIGINT, not kill(helper)
                     deadline = time.monotonic() + 12
                     while not (directory / "result.json").exists() and time.monotonic() < deadline:
                         time.sleep(0.05)
