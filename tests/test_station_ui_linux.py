@@ -342,19 +342,25 @@ class EngineCleanupTests(unittest.TestCase):
     def assert_process_exited(self, stat: Path) -> None:
         try:
             snapshot = stat.read_text()
-        except FileNotFoundError:
-            return  # O processo pode desaparecer antes da leitura, inclusive após um probe.
+        except (FileNotFoundError, ProcessLookupError):
+            return  # Ausência no open (ENOENT) ou desaparecimento durante read (ESRCH).
         self.assertEqual(snapshot.rsplit(") ", 1)[1].split()[0], "Z",
                          "filho continua executando depois do cancelamento")
 
     def test_exit_probe_handles_disappearance_without_hiding_live_process_or_errors(self) -> None:
+        import errno
+
         stat = mock.Mock(spec=Path)
         # A leitura pode falhar mesmo quando um probe anterior encontrou o processo.
         stat.exists.return_value = True
         self.assertTrue(stat.exists())
-        stat.read_text.side_effect = FileNotFoundError("processo terminou")
-        self.assert_process_exited(stat)
-        stat.read_text.assert_called_once_with()
+        for error in (FileNotFoundError(errno.ENOENT, "processo terminou"),
+                      ProcessLookupError(errno.ESRCH, "processo terminou durante read")):
+            with self.subTest(disappearance=type(error).__name__):
+                stat.read_text.reset_mock()
+                stat.read_text.side_effect = error
+                self.assert_process_exited(stat)
+                stat.read_text.assert_called_once_with()
 
         stat.read_text.side_effect = None
         stat.read_text.return_value = "123 (child) Z 1 2 3"
@@ -364,10 +370,11 @@ class EngineCleanupTests(unittest.TestCase):
                 stat.read_text.return_value = "123 (child) " + state + " 1 2 3"
                 with self.assertRaises(AssertionError):
                     self.assert_process_exited(stat)
-        for error in (PermissionError, OSError):
-            with self.subTest(error=error.__name__):
-                stat.read_text.side_effect = error("leitura não comprova término")
-                with self.assertRaises(error):
+        for error in (PermissionError(errno.EACCES, "permissão negada"),
+                      OSError(errno.EIO, "leitura não comprova término")):
+            with self.subTest(error=type(error).__name__):
+                stat.read_text.side_effect = error
+                with self.assertRaises(type(error)):
                     self.assert_process_exited(stat)
 
     def test_cancel_before_start_does_not_launch_engine(self) -> None:
