@@ -93,8 +93,20 @@ foreach ($status in @('skipped','missing','already')) {
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_paths_override_precedence_and_current_user_package_identity(self):
-        with tempfile.TemporaryDirectory() as temporary:
+        import ctypes
+
+        with tempfile.TemporaryDirectory(prefix='HubICG path probe ') as temporary:
             root = Path(temporary)
+            roots = [('absolute', str(root)), ('dot-component', str(root) + r'\.')]
+            # CI TEMP may use an 8.3 alias. Query only our own temporary directory;
+            # never change the volume's short-name policy or depend on its spelling.
+            get_short = ctypes.WinDLL('kernel32', use_last_error=True).GetShortPathNameW
+            get_short.argtypes = [ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint]
+            get_short.restype = ctypes.c_uint
+            short = ctypes.create_unicode_buffer(32768)
+            size = get_short(str(root), short, len(short))
+            if 0 < size < len(short) and short.value != str(root):
+                roots.append(('short-alias', short.value))
             harness = root / 'probe.ps1'
             harness.write_text(r'''
 param([string]$Engine, [string]$Root)
@@ -113,16 +125,18 @@ $env:CODEX_INSTALL_DIR = $null
 $default = Join-Path $env:LOCALAPPDATA 'Programs\OpenAI\Codex\bin'
 Assert (Get-CodexBinDir) $default 'documented default'
 $env:CODEX_INSTALL_DIR = Join-Path $Root 'override with spaces'
-Assert (Get-CodexBinDir) $env:CODEX_INSTALL_DIR 'explicit installer override'
+$overrideInput = $env:CODEX_INSTALL_DIR
+New-Item -ItemType Directory -Path $overrideInput -Force | Out-Null
+$resolvedDirectory = Get-CodexBinDir
+Assert $env:CODEX_INSTALL_DIR $overrideInput 'installer override is not mutated'
 $script:onPath = 'existing-on-path.cmd'
 function Find-Tool { param($Name) Assert $Name 'codex' 'resolver only codex'; return $script:onPath }
 Assert (Find-Codex) 'existing-on-path.cmd' 'existing PATH has priority'
 $script:onPath = $null
 Assert ([bool](Find-Codex)) $false 'absent override command'
-New-Item -ItemType Directory -Path $env:CODEX_INSTALL_DIR -Force | Out-Null
 $exe = Join-Path $env:CODEX_INSTALL_DIR 'codex.exe'
 [IO.File]::WriteAllText($exe, 'inert test fixture, never executed')
-Assert (Find-Codex) $exe 'documented command outside inherited PATH'
+$resolvedCommand = Find-Codex
 $Isolated = $false
 $script:packageState = 'installed'
 function Get-AppxPackage {
@@ -138,11 +152,23 @@ $script:packageState = 'absent'
 Assert (Get-ChatGptDesktopProbe).state 'absent' 'successful empty query proves absence'
 $script:packageState = 'error'
 Assert (Get-ChatGptDesktopProbe).state 'unknown' 'discovery error is inconclusive'
-Write-Output 'isolated probes passed'
+[ordered]@{message='isolated probes passed'; directory=$resolvedDirectory; command=$resolvedCommand} | ConvertTo-Json -Compress
 ''', encoding='utf-8')
-            result = subprocess.run(
-                ['powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
-                 str(harness), '-Engine', str(ENGINE), '-Root', str(root)],
-                capture_output=True, text=True, timeout=30)
-            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            self.assertIn('isolated probes passed', result.stdout)
+            expected_directory = root / 'override with spaces'
+            expected_command = expected_directory / 'codex.exe'
+            for label, root_spelling in roots:
+                with self.subTest(path=label):
+                    expected_command.unlink(missing_ok=True)
+                    result = subprocess.run(
+                        ['powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
+                         str(harness), '-Engine', str(ENGINE), '-Root', root_spelling],
+                        capture_output=True, text=True, timeout=30)
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                    evidence = json.loads(result.stdout)
+                    self.assertEqual(evidence['message'], 'isolated probes passed')
+                    self.assertTrue(os.path.isabs(evidence['directory']))
+                    # Compare actual filesystem identity, not a second call to
+                    # the implementation's normalization API or raw path text.
+                    self.assertTrue(os.path.samefile(expected_directory, evidence['directory']), evidence)
+                    self.assertTrue(os.path.samefile(expected_command, evidence['command']), evidence)
+                    self.assertEqual(Path(evidence['command']).read_text(), 'inert test fixture, never executed')
