@@ -28,6 +28,24 @@ assert spec.loader is not None
 spec.loader.exec_module(ui)
 
 
+def syntax_bash(platform: str = sys.platform) -> str | None:
+    if platform != "win32":
+        return shutil.which("bash")
+    # Windows/System32/bash.exe is a WSL launcher, not the native Git Bash parser.
+    git = shutil.which("git")
+    roots = list(Path(git).resolve().parents[:3]) if git else []
+    roots += [Path(value) / "Git" for key in ("ProgramW6432", "ProgramFiles", "ProgramFiles(x86)")
+              if (value := os.environ.get(key))]
+    if local := os.environ.get("LOCALAPPDATA"):
+        roots.append(Path(local) / "Programs" / "Git")
+    for root in roots:
+        for relative in ("bin/bash.exe", "usr/bin/bash.exe"):
+            candidate = root / relative
+            if candidate.is_file():
+                return str(candidate)
+    return None
+
+
 def event(seq: int, type_: str, step: str = "", status: str = "", **data: object) -> dict:
     return {"schema": "hubicg.station.event/1", "runId": "r", "seq": seq, "ts": "2026-10-22T00:00:00Z",
             "type": type_, "step": step, "status": status, "message": "", "data": data}
@@ -268,13 +286,31 @@ class FrontendSelectionTests(unittest.TestCase):
         arguments.append(current)
         self.assertEqual(arguments, ["sh", "-c", 'exec "$(dirname "$0")/hubicg-station-ui.sh"', "%k"])
 
-    @unittest.skipUnless(shutil.which("bash"), "requer bash")
     def test_launcher_shell_syntax(self) -> None:
+        bash = syntax_bash()
+        self.assertIsNotNone(bash, "Bash real não encontrado: Windows exige Git Bash instalado; "
+                             f"demais plataformas exigem bash no PATH. git={shutil.which('git')!r}; "
+                             f"bash do PATH={shutil.which('bash')!r}")
         script = (LINUX / "hubicg-station-ui.sh").relative_to(ROOT).as_posix()
-        result = subprocess.run(["bash", "-n", script], cwd=ROOT, capture_output=True, text=True)
-        self.assertEqual(result.returncode, 0, result.stderr)
+        command = [bash, "-n", script]
+        result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, timeout=15)
+        self.assertEqual(result.returncode, 0,
+                         f"command={command!r}; exit={result.returncode}; "
+                         f"stdout={result.stdout!r}; stderr={result.stderr!r}")
 
-    @unittest.skipUnless(os.name == "posix" and shutil.which("gio"), "executor .desktop GIO")
+    def test_windows_syntax_bash_ignores_wsl_launcher_on_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "Git with spaces"
+            (root / "cmd").mkdir(parents=True)
+            (root / "bin").mkdir()
+            git = root / "cmd" / "git.exe"
+            bash = root / "bin" / "bash.exe"
+            bash.touch()
+            with mock.patch.object(shutil, "which", side_effect=lambda name:
+                                   str(git) if name == "git" else "C:/Windows/System32/bash.exe"):
+                self.assertEqual(Path(syntax_bash("win32")).resolve(), bash.resolve())
+
+    @unittest.skipUnless(sys.platform == "linux" and shutil.which("gio"), "executor .desktop GIO Linux")
     def test_shortcut_in_percent_directory_executes_original_launcher(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -452,7 +488,7 @@ class ZenityWizardTests(unittest.TestCase):
         self.assertFalse(any("--hide-text" in arg or "--password" in arg for call in calls for arg in call))
 
 
-@unittest.skipUnless(os.name == "posix", "helper usa terminal POSIX")
+@unittest.skipUnless(sys.platform == "linux", "helper requer /proc, subreaper e pidfd do Linux")
 class SystemToolsHelperTests(unittest.TestCase):
     def test_event_command_is_ignored_and_pending_blocks_new_engine(self) -> None:
         frontend = ui.TerminalFrontend(ui.Texts(), stdout=io.StringIO())
