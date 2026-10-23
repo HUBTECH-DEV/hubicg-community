@@ -1,0 +1,6 @@
+{
+  "diff_analisado": true,
+  "veredito": "aprovado",
+  "resumo": "A mudança revoga a declaração anterior de login do ChatGPT Desktop mesmo quando uma dependência bloqueia a etapa de autenticação. As três UIs passam a excluir as capacidades OpenAI da seleção padrão, preservando a seleção explícita. Os testes adicionados cobrem esses comportamentos, e não identifiquei defeitos nas alterações fornecidas. A revisão foi estática, sem executar comandos ou testes.",
+  "findings": []
+}
