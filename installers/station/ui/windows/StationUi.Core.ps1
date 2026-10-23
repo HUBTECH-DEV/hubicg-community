@@ -510,11 +510,12 @@ function Stop-StationEngineRun {
 }
 
 function Get-StationDefaultSelection {
-  # Seleção padrão: todas as etapas, menos environment (sempre roda) e as que não se aplicam ao sistema.
+  # Preserve a seleção histórica; capacidades OpenAI exigem escolha explícita.
   param([hashtable]$CheckState)
+  $optional = @('codex-cli', 'codex-cli-auth', 'chatgpt-desktop', 'chatgpt-desktop-auth')
   $selection = @()
   foreach ($step in $CheckState.Steps) {
-    if ($step -eq 'environment') { continue }
+    if ($step -eq 'environment' -or $optional -contains $step) { continue }
     if ($CheckState.Status.ContainsKey($step) -and $CheckState.Status[$step] -eq 'unsupported') { continue }
     $selection += $step
   }

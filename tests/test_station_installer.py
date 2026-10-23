@@ -940,6 +940,37 @@ class MotorWindowsTests(CenariosDoMotor, unittest.TestCase):
         again = m.rodar('-Only', 'chatgpt-desktop-auth')
         self.assertEqual(again.status()['chatgpt-desktop-auth'], 'action_required', again)
 
+    def test_chatgpt_negativa_revoga_antes_de_dependencia_bloquear_auth(self) -> None:
+        m = self.maquina_vazia()
+        m.ajustar(chatgpt_install_fail=True)
+        m.config.mkdir()
+        statefile = m.config / '.hubicg-station.json'
+        statefile.write_text(json.dumps({'schemaVersion': '1.0', 'agents': {},
+            'desktopLoginConfirmedAt': '2026-10-01T00:00:00Z',
+            'chatgptDesktopLoginConfirmedAt': '2026-10-02T00:00:00Z'}), encoding='utf-8')
+        before = fotografia(m.config)
+        selection = 'chatgpt-desktop,chatgpt-desktop-auth'
+        for mode in ('check', 'plan'):
+            r = m.rodar('-Only', selection, modo=mode, respostas={'chatgpt.loginConfirmed': False})
+            self.assertEqual(r.codigo, 5, r)
+            self.assertEqual(before, fotografia(m.config))
+        # A response for an unselected auth step must not revoke its state.
+        unselected = m.rodar('-Only', 'chatgpt-desktop', respostas={'chatgpt.loginConfirmed': False})
+        self.assertEqual(unselected.status()['chatgpt-desktop'], 'failed', unselected)
+        self.assertEqual(before, fotografia(m.config))
+        failed = m.rodar('-Only', selection, respostas={'chatgpt.loginConfirmed': False})
+        self.assertEqual(failed.status()['chatgpt-desktop'], 'failed', failed)
+        self.assertEqual(failed.status()['chatgpt-desktop-auth'], 'blocked', failed)
+        state = json.loads(statefile.read_text(encoding='utf-8'))
+        self.assertNotIn('chatgptDesktopLoginConfirmedAt', state)
+        self.assertEqual(state['desktopLoginConfirmedAt'], '2026-10-01T00:00:00Z')
+        m.ajustar(chatgpt_install_fail=False)
+        fixed = m.rodar('-Only', selection)
+        self.assertEqual(fixed.status()['chatgpt-desktop'], 'installed', fixed)
+        self.assertEqual(fixed.status()['chatgpt-desktop-auth'], 'action_required', fixed)
+        self.assertEqual(fixed.acoes()[0]['data']['id'], 'chatgpt-desktop-login-confirm')
+        self.assertNotIn('chatgptDesktopLoginConfirmedAt', json.loads(statefile.read_text(encoding='utf-8')))
+
     def test_gh_stderr_eof_nao_remove_prazo(self) -> None:
         # Load only the function under test, never execute a real engine/login.
         with tempfile.TemporaryDirectory() as temporary:

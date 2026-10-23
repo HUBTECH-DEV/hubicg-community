@@ -1032,7 +1032,7 @@ function Step-ChatGptDesktop {
     return (New-Result 'installed' 'ChatGPT Desktop instalado e registrado para este usuario')
 }
 
-function Step-ChatGptDesktopAuth {
+function Get-ChatGptDesktopLoginState {
     $state = Read-State
     # A current negative declaration revokes the previous acknowledgement.
     # Check/plan describe the result without changing the stored state.
@@ -1040,6 +1040,11 @@ function Step-ChatGptDesktopAuth {
         $state.chatgptDesktopLoginConfirmedAt = $null
         if ($Mode -eq 'apply') { Write-State $state }
     }
+    return $state
+}
+
+function Step-ChatGptDesktopAuth {
+    $state = Get-ChatGptDesktopLoginState
     $data = [ordered]@{ evidence = 'user_declared'; identityVerified = $false }
     $probe = Get-ChatGptDesktopProbe
     if ($probe.state -eq 'unknown') { return (New-Result 'failed' 'descoberta ChatGPT Desktop inconclusiva; declaracao nao confirma instalacao ou sessao' ([ordered]@{ detection = 'unknown' })) }
@@ -1222,15 +1227,21 @@ foreach ($step in $AllSteps) {
         ($OptionalSteps -contains $step -and $Only -notcontains $step)) {
         $result = New-Result 'skipped' 'fora da selecao de -Only'
     } else {
-        $blockedBy = @($Depends[$step] | Where-Object { $_ -and $Results.Contains($_) -and $Results[$_].status -in @('failed', 'action_required', 'blocked') })
-        if ($Mode -eq 'apply' -and $blockedBy.Count -gt 0) {
-            $result = New-Result 'blocked' ('depende de: ' + ($blockedBy -join ', ')) ([ordered]@{ blockedBy = $blockedBy })
-        } else {
-            try {
-                $result = & $Handlers[$step]
-            } catch {
-                $result = New-Result 'failed' ('erro inesperado: ' + $_.Exception.Message)
+        try {
+            # An explicit revocation belongs to the selected auth step even
+            # when installation is pending/failed and blocks its handler.
+            if ($step -eq 'chatgpt-desktop-auth' -and $Mode -eq 'apply' -and
+                (Get-Answer 'chatgpt.loginConfirmed') -eq $false) {
+                $null = Get-ChatGptDesktopLoginState
             }
+            $blockedBy = @($Depends[$step] | Where-Object { $_ -and $Results.Contains($_) -and $Results[$_].status -in @('failed', 'action_required', 'blocked') })
+            if ($Mode -eq 'apply' -and $blockedBy.Count -gt 0) {
+                $result = New-Result 'blocked' ('depende de: ' + ($blockedBy -join ', ')) ([ordered]@{ blockedBy = $blockedBy })
+            } else {
+                $result = & $Handlers[$step]
+            }
+        } catch {
+            $result = New-Result 'failed' ('erro inesperado: ' + $_.Exception.Message)
         }
     }
     $Results[$step] = $result
