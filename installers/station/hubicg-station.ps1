@@ -74,6 +74,8 @@ $AllSteps = @(
     'environment', 'git', 'git-identity', 'gh', 'gh-auth', 'repo',
     'claude-cli', 'claude-cli-auth', 'claude-desktop', 'claude-desktop-auth', 'agents'
 )
+$OptionalSteps = @('codex-cli', 'codex-cli-auth', 'chatgpt-desktop', 'chatgpt-desktop-auth')
+$AllSteps += $OptionalSteps
 $Depends = @{
     'git-identity'        = @('git')
     'gh-auth'             = @('gh')
@@ -81,8 +83,10 @@ $Depends = @{
     'claude-cli-auth'     = @('claude-cli')
     'claude-desktop-auth' = @('claude-desktop')
     'agents'              = @('repo')
+    'codex-cli-auth'      = @('codex-cli')
+    'chatgpt-desktop-auth' = @('chatgpt-desktop')
 }
-$KnownAnswers = @('git.name', 'git.email', 'git.useSystemCertStore', 'desktop.loginConfirmed', 'claude.addToPath')
+$KnownAnswers = @('git.name', 'git.email', 'git.useSystemCertStore', 'desktop.loginConfirmed', 'claude.addToPath', 'chatgpt.loginConfirmed')
 $Results = [ordered]@{}
 $Script:Seq = 0
 $Script:Env = @{ tls = 'skipped'; arch = '' }
@@ -92,7 +96,7 @@ $Script:Env = @{ tls = 'skipped'; arch = '' }
 function Protect-Text([string]$Text) {
     if (-not $Text) { return $Text }
     $t = $Text -replace '://[^@/\s]+@', '://***@'
-    $t = $t -replace '\b(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|sk-ant-[A-Za-z0-9_\-]{10,})', '[redacted]'
+    $t = $t -replace '\b(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9_\-]{10,})', '[redacted]'
     $t = $t -replace '(?i)(bearer\s+)[A-Za-z0-9._\-]+', '$1[redacted]'
     return $t
 }
@@ -876,13 +880,14 @@ function Step-ClaudeDesktop {
 # --- State file ---------------------------------------------------------------
 
 function Read-State {
-    $state = @{ agents = @{}; desktopLoginConfirmedAt = $null }
+    $state = @{ agents = @{}; desktopLoginConfirmedAt = $null; chatgptDesktopLoginConfirmedAt = $null }
     if (Test-Path -LiteralPath $StateFile) {
         $raw = [IO.File]::ReadAllText($StateFile, $Utf8) | ConvertFrom-Json
         if (($raw.PSObject.Properties.Name -contains 'agents') -and $raw.agents) {
             foreach ($p in $raw.agents.PSObject.Properties) { $state.agents[$p.Name] = [string]$p.Value }
         }
         if ($raw.PSObject.Properties.Name -contains 'desktopLoginConfirmedAt') { $state.desktopLoginConfirmedAt = $raw.desktopLoginConfirmedAt }
+        if ($raw.PSObject.Properties.Name -contains 'chatgptDesktopLoginConfirmedAt') { $state.chatgptDesktopLoginConfirmedAt = $raw.chatgptDesktopLoginConfirmedAt }
     }
     return $state
 }
@@ -891,6 +896,8 @@ function Write-State($State) {
     $agents = [ordered]@{}
     foreach ($key in ($State.agents.Keys | Sort-Object)) { $agents[$key] = $State.agents[$key] }
     $payload = [ordered]@{ schemaVersion = '1.0'; desktopLoginConfirmedAt = $State.desktopLoginConfirmedAt; agents = $agents }
+    # Preserve the legacy state bytes when the optional capability was never used.
+    if ($State.chatgptDesktopLoginConfirmedAt) { $payload.chatgptDesktopLoginConfirmedAt = $State.chatgptDesktopLoginConfirmedAt }
     $text = ($payload | ConvertTo-Json -Depth 4) + "`n"
     # Unchanged state is not rewritten: a second run must not touch the disk.
     if ((Test-Path -LiteralPath $StateFile) -and ([IO.File]::ReadAllText($StateFile, $Utf8) -eq $text)) { return }
@@ -919,6 +926,140 @@ function Step-ClaudeDesktopAuth {
     $state.desktopLoginConfirmedAt = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
     Write-State $state
     return (New-Result 'configured' 'login no Claude Desktop confirmado pelo usuario')
+}
+
+# --- Optional OpenAI capabilities (Windows, explicit selection only) -----------
+
+$CodexInstallUrl = 'https://chatgpt.com/codex/install.ps1'
+function Get-CodexBinDir {
+    if ($env:CODEX_INSTALL_DIR) { return [IO.Path]::GetFullPath($env:CODEX_INSTALL_DIR) }
+    return (Join-Path $env:LOCALAPPDATA 'Programs\OpenAI\Codex\bin')
+}
+
+function Find-Codex {
+    $path = Find-Tool 'codex'
+    if ($path) { return $path }
+    $candidate = Join-Path (Get-CodexBinDir) 'codex.exe'
+    if (Test-Path -LiteralPath $candidate -PathType Leaf) { return $candidate }
+    return $null
+}
+
+function Get-CodexVersion {
+    $path = Find-Codex
+    if (-not $path) { return $null }
+    $probe = Invoke-ToolBounded $path @('--version') 30
+    if ($probe.code -eq 0 -and -not $probe.timedOut) {
+        $match = [regex]::Match($probe.out, '\d+(\.\d+)+')
+        if ($match.Success) { return $match.Value }
+    }
+    return $null
+}
+
+function Step-CodexCli {
+    $version = Get-CodexVersion
+    if ($version) { return (New-Result 'already' "Codex CLI $version ja instalado" ([ordered]@{ version = $version; path = (Find-Codex) })) }
+    if ($Mode -eq 'check') { return (New-Result 'missing' 'Codex CLI nao encontrado ou sem versao verificavel') }
+    if ($Mode -eq 'plan') { return (New-Result 'would_install' 'executaria o instalador standalone oficial do Codex no contexto do usuario' ([ordered]@{ url = $CodexInstallUrl; installDir = (Get-CodexBinDir) })) }
+    # Do not replace an existing but broken/unsupported command silently.
+    if (Find-Codex) { return (New-Result 'failed' 'Codex existente sem versao verificavel; confira o comando antes de instalar') }
+    $script = Save-Download 'codex-cli' $CodexInstallUrl 'codex-install.ps1'
+    if (-not $script) { return (New-Result 'failed' 'download do instalador oficial do Codex falhou') }
+    $previous = $env:CODEX_NON_INTERACTIVE
+    try {
+        $env:CODEX_NON_INTERACTIVE = '1'
+        $shell = Join-Path $PSHOME 'powershell.exe'
+        if (-not (Test-Path -LiteralPath $shell)) { $shell = Join-Path $PSHOME 'pwsh.exe' }
+        # Installer output is deliberately not copied to the public event/log stream.
+        $null = & $shell -NoProfile -ExecutionPolicy Bypass -File $script 2>&1
+        $installCode = $LASTEXITCODE
+    } finally {
+        $env:CODEX_NON_INTERACTIVE = $previous
+        Remove-Item -LiteralPath (Split-Path -Parent $script) -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    Update-SessionPath
+    $version = Get-CodexVersion
+    if ($installCode -ne 0 -or -not $version) { return (New-Result 'failed' "instalador Codex terminou com codigo $installCode; versao precisa ser verificada") }
+    return (New-Result 'installed' "Codex CLI $version instalado" ([ordered]@{ version = $version; path = (Find-Codex) }))
+}
+
+function Step-CodexCliAuth {
+    $path = Find-Codex
+    $probe = if ($path) { Invoke-ToolBounded $path @('login', 'status') 30 } else { @{ code = 127; timedOut = $false } }
+    # Documented exit 0 confirms only generic local authentication. Never parse,
+    # log or persist its output, account identity, auth cache, or secrets.
+    if ($probe.code -eq 0 -and -not $probe.timedOut) {
+        return (New-Result 'already' 'autenticacao local do Codex confirmada pelo comando oficial; identidade nao verificada' ([ordered]@{ evidence = 'cli_status'; identityVerified = $false }))
+    }
+    if ($Mode -eq 'check') { return (New-Result 'missing' 'autenticacao do Codex nao confirmada') }
+    if ($Mode -eq 'plan') { return (New-Result 'would_configure' 'solicitaria login oficial do Codex no terminal' ([ordered]@{ command = 'codex login' })) }
+    Request-Action -Step 'codex-cli-auth' -Id 'codex-login' -Kind 'run_in_terminal' -Command 'codex login' `
+        -Message 'Confira a instalacao do Codex e execute codex login num terminal, seguindo o navegador oficial. Depois execute novamente para conferir codex login status. Nenhuma credencial deve ser fornecida ao instalador.'
+    return (New-Result 'action_required' 'autenticacao do Codex nao confirmada; login oficial no terminal pendente')
+}
+
+function Get-ChatGptDesktopProbe {
+    # The documented MSIX identity is OpenAI.Codex. Query only this user;
+    # provisioning/all-users presence does not prove per-user installation.
+    if ($Isolated) {
+        $marker = Test-Path -LiteralPath (Join-Path $env:LOCALAPPDATA 'HubICG-test-chatgpt-installed')
+        if ($env:HUBICG_STATION_TEST_CHATGPT_DESKTOP -eq 'unknown' -or
+            ($marker -and $env:HUBICG_STATION_TEST_CHATGPT_DESKTOP -eq 'unknown_after_install')) { return @{ state = 'unknown' } }
+        return @{ state = $(if ($env:HUBICG_STATION_TEST_CHATGPT_DESKTOP -eq 'installed' -or $marker) { 'installed' } else { 'absent' }) }
+    }
+    try {
+        $package = Get-AppxPackage -Name 'OpenAI.Codex' -ErrorAction Stop
+        return @{ state = $(if ($package) { 'installed' } else { 'absent' }) }
+    } catch { return @{ state = 'unknown' } }
+}
+
+function Step-ChatGptDesktop {
+    $probe = Get-ChatGptDesktopProbe
+    if ($probe.state -eq 'unknown') { return (New-Result 'failed' 'descoberta ChatGPT Desktop inconclusiva: consulta Appx indisponivel; nenhuma instalacao iniciada' ([ordered]@{ detection = 'unknown' })) }
+    if ($probe.state -eq 'installed') { return (New-Result 'already' 'ChatGPT Desktop registrado para este usuario') }
+    if ($Mode -eq 'check') { return (New-Result 'missing' 'ChatGPT Desktop nao encontrado para este usuario') }
+    if ($Mode -eq 'plan') { return (New-Result 'would_install' 'instalaria ChatGPT Desktop pela Microsoft Store oficial' ([ordered]@{ command = 'winget install --id 9PLM9XGG6VKS -s msstore' })) }
+    if (-not (Find-Tool 'winget')) {
+        Request-Action -Step 'chatgpt-desktop' -Id 'package-manager-missing' -Kind 'external' `
+            -Message 'Instale o App Installer pela Microsoft Store e rode novamente para instalar o ChatGPT Desktop.' `
+            -Url 'https://apps.microsoft.com/detail/9NBLGGH4NNS1'
+        return (New-Result 'action_required' 'winget ausente; ChatGPT Desktop nao instalado')
+    }
+    $r = Invoke-Tool 'winget' @('install', '--id', '9PLM9XGG6VKS', '-s', 'msstore',
+        '--silent', '--accept-package-agreements', '--accept-source-agreements', '--disable-interactivity')
+    $probe = Get-ChatGptDesktopProbe
+    if ($probe.state -eq 'unknown') { return (New-Result 'failed' 'descoberta ChatGPT Desktop inconclusiva apos instalacao; registro nao confirmado' ([ordered]@{ detection = 'unknown' })) }
+    if ($r.code -ne 0 -or $probe.state -ne 'installed') { return (New-Result 'failed' "instalacao Store nao confirmada para este usuario (codigo $($r.code)); confira rede, permissoes e Store") }
+    return (New-Result 'installed' 'ChatGPT Desktop instalado e registrado para este usuario')
+}
+
+function Step-ChatGptDesktopAuth {
+    $state = Read-State
+    # A current negative declaration revokes the previous acknowledgement.
+    # Check/plan describe the result without changing the stored state.
+    if ((Get-Answer 'chatgpt.loginConfirmed') -eq $false -and $state.chatgptDesktopLoginConfirmedAt) {
+        $state.chatgptDesktopLoginConfirmedAt = $null
+        if ($Mode -eq 'apply') { Write-State $state }
+    }
+    $data = [ordered]@{ evidence = 'user_declared'; identityVerified = $false }
+    $probe = Get-ChatGptDesktopProbe
+    if ($probe.state -eq 'unknown') { return (New-Result 'failed' 'descoberta ChatGPT Desktop inconclusiva; declaracao nao confirma instalacao ou sessao' ([ordered]@{ detection = 'unknown' })) }
+    if ($probe.state -ne 'installed') {
+        if ($Mode -eq 'check') { return (New-Result 'missing' 'ChatGPT Desktop nao encontrado para confirmar login') }
+        if ($Mode -eq 'plan') { return (New-Result 'would_configure' 'confirmaria login apos instalar ChatGPT Desktop' $data) }
+        return (New-Result 'blocked' 'instale ChatGPT Desktop antes de confirmar o login' ([ordered]@{ blockedBy = @('chatgpt-desktop') }))
+    }
+    if ($state.chatgptDesktopLoginConfirmedAt) { return (New-Result 'already' "login ChatGPT Desktop declarado pelo usuario em $($state.chatgptDesktopLoginConfirmedAt); sessao nao verificada automaticamente" $data) }
+    if ($Mode -eq 'check') { return (New-Result 'missing' 'login ChatGPT Desktop ainda nao declarado pelo usuario') }
+    if ($Mode -eq 'plan') { return (New-Result 'would_configure' 'pediria declaracao do login ChatGPT Desktop pelo usuario' $data) }
+    if ((Get-Answer 'chatgpt.loginConfirmed') -ne $true) {
+        Request-Action -Step 'chatgpt-desktop-auth' -Id 'chatgpt-desktop-login-confirm' -Kind 'confirm' `
+            -Message 'Abra ChatGPT Desktop pelo menu Iniciar, selecione Continue e conclua o login oficial no navegador. Confirme quando terminar. O instalador nao verifica a sessao, conta ou workspace do app.' `
+            -Answers @((New-Answer 'chatgpt.loginConfirmed' 'boolean' 'Declaro que conclui o login no ChatGPT Desktop'))
+        return (New-Result 'action_required' 'declaracao do login ChatGPT Desktop pendente' $data)
+    }
+    $state.chatgptDesktopLoginConfirmedAt = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+    Write-State $state
+    return (New-Result 'configured' 'login ChatGPT Desktop declarado pelo usuario; sessao nao verificada automaticamente' $data)
 }
 
 # --- agents -------------------------------------------------------------------
@@ -1051,6 +1192,8 @@ $Handlers = @{
     'gh' = { Step-Gh }; 'gh-auth' = { Step-GhAuth }; 'repo' = { Step-Repo }
     'claude-cli' = { Step-ClaudeCli }; 'claude-cli-auth' = { Step-ClaudeCliAuth }
     'claude-desktop' = { Step-ClaudeDesktop }; 'claude-desktop-auth' = { Step-ClaudeDesktopAuth }
+    'codex-cli' = { Step-CodexCli }; 'codex-cli-auth' = { Step-CodexCliAuth }
+    'chatgpt-desktop' = { Step-ChatGptDesktop }; 'chatgpt-desktop-auth' = { Step-ChatGptDesktopAuth }
     'agents' = { Step-Agents }
 }
 
@@ -1075,7 +1218,8 @@ $index = 0
 foreach ($step in $AllSteps) {
     $index++
     Send-Event -Type 'step_start' -Step $step -Data ([ordered]@{ index = $index; total = $AllSteps.Count })
-    if ($Only.Count -gt 0 -and $step -ne 'environment' -and $Only -notcontains $step) {
+    if (($Only.Count -gt 0 -and $step -ne 'environment' -and $Only -notcontains $step) -or
+        ($OptionalSteps -contains $step -and $Only -notcontains $step)) {
         $result = New-Result 'skipped' 'fora da selecao de -Only'
     } else {
         $blockedBy = @($Depends[$step] | Where-Object { $_ -and $Results.Contains($_) -and $Results[$_].status -in @('failed', 'action_required', 'blocked') })

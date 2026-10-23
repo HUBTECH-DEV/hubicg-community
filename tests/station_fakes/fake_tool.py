@@ -177,6 +177,14 @@ def fake_package_manager(args: list[str], state: dict) -> int:
         return 0
     if "install" not in args:
         return 0
+    if '9PLM9XGG6VKS' in args:
+        if state.get('chatgpt_install_fail'):
+            return 1
+        if not state.get('chatgpt_install_no_registration'):
+            marker = Path(os.environ['LOCALAPPDATA']) / 'HubICG-test-chatgpt-installed'
+            marker.parent.mkdir(parents=True, exist_ok=True)
+            marker.touch()
+        return 0
     names = [a for a in args if not a.startswith("-") and a not in ("install",)]
     if "--id" in args:
         names = [args[args.index("--id") + 1]]
@@ -207,6 +215,13 @@ def fake_curl(args: list[str], state: dict) -> int:
     url = args[-1]
     python = sys.executable
     script = Path(__file__).resolve()
+    if 'chatgpt.com/codex/' in url:
+        if state.get('codex_download_fail'):
+            err('TLS certificate verification failed')
+            return 60
+        target.write_text(
+            f'& "{python}" "{script}" __codex_install\r\nexit $LASTEXITCODE\r\n', encoding='ascii')
+        return 0
     if url.endswith("install.sh"):
         target.write_text(f'#!/bin/sh\n"{python}" "{script}" __install claude\n', encoding="ascii")
     elif url.endswith("install.ps1"):
@@ -247,6 +262,19 @@ def fake_claude(args: list[str], state: dict) -> int:
             time.sleep(state["claude_auth_delay_after_output"])
         return 0 if logged else 1
     return 0
+
+
+def fake_codex(args: list[str], state: dict) -> int:
+    if args == ['--version']:
+        out('codex-cli 0.120.0')
+        return state.get('codex_version_exit', 0)
+    if args == ['login', 'status']:
+        if state.get('codex_auth_delay'):
+            time.sleep(state['codex_auth_delay'])
+        # Sensitive-looking synthetic output must never leave the probe.
+        out('synthetic-person@example.invalid sk-proj-' + 'X' * 40)
+        return state.get('codex_auth_exit', 0 if state.get('codex_auth') else 1)
+    raise AssertionError('unexpected Codex invocation: ' + repr(args))
 
 
 def fake_id(args: list[str], state: dict) -> int:
@@ -293,6 +321,7 @@ TOOLS = {
     "git": fake_git, "gh": fake_gh, "winget": fake_package_manager,
     "apt-get": fake_package_manager, "dnf": fake_package_manager, "sudo": fake_sudo,
     "curl": fake_curl, "claude": fake_claude, "id": fake_id, "dpkg": fake_dpkg,
+    "codex": fake_codex,
     "openssl": fake_openssl,
     "brew": fake_brew, "uname": fake_uname, "sw_vers": fake_sw_vers,
 }
@@ -300,6 +329,15 @@ TOOLS = {
 
 def main() -> int:
     name, args = sys.argv[1], sys.argv[2:]
+    if name == '__codex_install':
+        state = load()
+        state['codex_installer_noninteractive'] = os.environ.get('CODEX_NON_INTERACTIVE')
+        save(state)
+        if state.get('codex_install_fail'):
+            return 1
+        if not state.get('codex_install_no_command'):
+            make_launcher('codex')
+        return 0
     if name == "__install":
         make_launcher(args[0])
         return 0

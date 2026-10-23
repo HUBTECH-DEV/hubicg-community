@@ -74,6 +74,8 @@ while [ $# -gt 0 ]; do
 done
 
 ALL_STEPS="environment git git-identity gh gh-auth repo claude-cli claude-cli-auth claude-desktop claude-desktop-auth agents"
+OPTIONAL_STEPS="codex-cli codex-cli-auth chatgpt-desktop chatgpt-desktop-auth"
+ALL_STEPS="$ALL_STEPS $OPTIONAL_STEPS"
 for wanted in $(printf '%s' "$ONLY" | tr ',' ' '); do
   case " $ALL_STEPS " in
     *" $wanted "*) ;;
@@ -1065,7 +1067,7 @@ state_agent_names() {
 
 write_state() {
   # write_state AGENTS_LINES_FILE DESKTOP_CONFIRMED_AT; lines are "name hash".
-  local entries="" first=1 name hash text desktop
+  local entries="" first=1 name hash text desktop chatgpt="" chatgpt_field=""
   while read -r name hash; do
     [ -n "$name" ] || continue
     [ $first -eq 1 ] || entries="${entries},"
@@ -1074,12 +1076,21 @@ write_state() {
     first=0
   done < <(sort -u -- "$1")
   desktop=$(json_or_null "$2")
+  # Preserve an acknowledgement written by the optional Windows capability
+  # when an explicit shared configuration directory is used across systems.
+  if [ -f "$STATE_FILE" ]; then
+    chatgpt=$(sed -n -E 's/.*"chatgptDesktopLoginConfirmedAt"[[:space:]]*:[[:space:]]*"([^"]*)".*/\1/p' "$STATE_FILE" | head -n 1)
+    if [ -n "$chatgpt" ]; then
+      chatgpt_field=",
+  \"chatgptDesktopLoginConfirmedAt\": $(json_str "$chatgpt")"
+    fi
+  fi
   if [ -n "$entries" ]; then entries="{${entries}
   }"; else entries="{}"; fi
   text="{
   \"schemaVersion\": \"1.0\",
   \"desktopLoginConfirmedAt\": ${desktop},
-  \"agents\": ${entries}
+  \"agents\": ${entries}${chatgpt_field}
 }"
   # Unchanged state is not rewritten: a second run must not touch the disk.
   if [ -f "$STATE_FILE" ] && [ "$(cat -- "$STATE_FILE")" = "$text" ]; then return 0; fi
@@ -1284,8 +1295,13 @@ for step in $ALL_STEPS; do
   if [ -n "$ONLY" ] && [ "$step" != "environment" ]; then
     case ",$ONLY," in *",$step,"*) ;; *) selected=0 ;; esac
   fi
+  case " $OPTIONAL_STEPS " in
+    *" $step "*) case ",$ONLY," in *",$step,"*) ;; *) selected=0 ;; esac ;;
+  esac
   if [ $selected -eq 0 ]; then
     result skipped "fora da selecao de --only"
+  elif case " $OPTIONAL_STEPS " in *" $step "*) true ;; *) false ;; esac; then
+    result unsupported "Capacidade OpenAI ainda nao implementada neste motor; use Windows."
   else
     blocked=""
     if [ "$MODE" = "apply" ]; then

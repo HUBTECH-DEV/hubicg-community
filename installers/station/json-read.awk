@@ -117,6 +117,7 @@ END {
         if (types["/schema"] != "string" || values["/schema"] != "hubicg.station.answers/1" || types["/answers"] != "object") fail()
         expected["git.name"] = expected["git.email"] = "string"
         expected["desktop.loginConfirmed"] = expected["git.useSystemCertStore"] = expected["claude.addToPath"] = "boolean"
+        expected["chatgpt.loginConfirmed"] = "boolean"
         for (k in expected) if (("/answers/" k) in types) {
             if (types["/answers/" k] != expected[k]) fail()
             if (expected[k] == "string" && values["/answers/" k] ~ /[[:cntrl:]]/) fail()

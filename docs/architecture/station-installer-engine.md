@@ -193,6 +193,18 @@ Ordem fixa. A interface não deve assumir a quantidade: ela vem em `run_start.da
 | `claude-desktop` | — | Instala o Claude Desktop. | sim | `unsupported` | (a definir) |
 | `claude-desktop-auth` | `claude-desktop` | Abre o app e pede a confirmação do login ao usuário. | sim | `unsupported` | sim |
 | `agents` | `repo` | Instala os agentes HubICG em `<configDir>/agents`, com manifesto. | sim | sim | sim |
+| `codex-cli` | — | **Opcional:** instalador standalone oficial do Codex no contexto do usuário. | sim | `unsupported` | `unsupported` |
+| `codex-cli-auth` | `codex-cli` | **Opcional:** confere `codex login status`; pede `codex login` no terminal. | sim | `unsupported` | `unsupported` |
+| `chatgpt-desktop` | — | **Opcional:** instala o Store ID `9PLM9XGG6VKS` por `msstore`, confere registro por usuário. | sim | `unsupported` | `unsupported` |
+| `chatgpt-desktop-auth` | `chatgpt-desktop` | **Opcional:** pede declaração de login; não verifica a sessão do app. | sim | `unsupported` | `unsupported` |
+
+Os quatro passos OpenAI só executam quando seus IDs são selecionados explicitamente
+em `-Only`/`--only`. Sem seleção, terminam em `skipped`, inclusive na execução padrão.
+`run_start.data.steps` inclui todos os IDs conhecidos; a quantidade não indica seleção.
+Não há expansão automática das dependências: selecione instalação e autenticação
+quando ambas forem necessárias. As interfaces existentes mantêm suas seleções;
+novos rótulos no catálogo não habilitam execução. Veja o
+[contrato e as fontes das capacidades OpenAI](../runbooks/station-openai-capabilities.md).
 
 Em modo verificação e simulação, `blocked` não é usado: cada etapa reporta o próprio estado.
 
@@ -324,7 +336,9 @@ de novo", que roda o motor outra vez.
 | `standard-user-required` | `git`, `gh`, `claude-desktop` | `external` | Homebrew não deve rodar como root; rodar com a conta comum de instalação. |
 | `claude-path` | `claude-cli` | `confirm` | `claude.addToPath` (Linux/macOS: incluir `~/.local/bin` no perfil do shell) |
 | `desktop-login-confirm` | `claude-desktop-auth` | `confirm` | `desktop.loginConfirmed` |
-| `package-manager-missing` | `git`, `gh` | `external` | instalar o gerenciador indicado |
+| `codex-login` | `codex-cli-auth` | `run_in_terminal` | `codex login` no terminal, nova execução confere `codex login status`; sem resposta de credencial |
+| `chatgpt-desktop-login-confirm` | `chatgpt-desktop-auth` | `confirm` | `chatgpt.loginConfirmed`, boolean obrigatório, sem default; declaração do usuário |
+| `package-manager-missing` | `git`, `gh`, `chatgpt-desktop` | `external` | instalar o gerenciador indicado |
 | `privilege-required` | `git`, `gh` | `run_in_terminal` ou `external` | Com sudo disponível, abrir o motor como usuário normal em terminal interativo; sem sudo, pedir uma conta autorizada. |
 | `agents-export` | `agents` | `external` | gerar/entregar o export público ao clone selecionado |
 | `agents-export-stale` | `agents` | `external` | preservar o export antigo e gerar um novo correspondente à biblioteca do clone |
@@ -367,6 +381,11 @@ A interface responde **rodando o motor de novo** com um arquivo de respostas:
 - Resposta inválida (por exemplo, e-mail malformado) faz a etapa terminar em `action_required` de novo, com a
   explicação em `message`.
 - **Nunca** ponha credencial no arquivo de respostas. Nenhuma chave do catálogo pede uma.
+- `chatgpt.loginConfirmed` (Windows) é independente de `desktop.loginConfirmed`
+  (Claude). Ausência/false mantém a declaração pendente; true só é persistido em
+  `chatgptDesktopLoginConfirmedAt` quando ChatGPT Desktop está registrado para o
+  usuário. `data.evidence=user_declared` não prova sessão, conta, domínio ou carga
+  de instruções. Não existe flag de terminal equivalente para esse novo campo.
 - A interface apaga o arquivo depois da execução.
 
 Atalhos equivalentes, para uso no terminal: `-GitName`/`--git-name`, `-GitEmail`/`--git-email`,

@@ -23,9 +23,15 @@
     "claude-cli-auth": "Login no Claude Code",
     "claude-desktop": "Claude Desktop",
     "claude-desktop-auth": "Login no Claude Desktop",
-    "agents": "Agentes HubICG"
+    "agents": "Agentes HubICG",
+    "codex-cli": "Codex (linha de comando, opcional)",
+    "codex-cli-auth": "Login no Codex (opcional)",
+    "chatgpt-desktop": "ChatGPT Desktop (opcional)",
+    "chatgpt-desktop-auth": "Login no ChatGPT Desktop (opcional)"
   },
   "authPreview": {
+    "codex-cli-auth": "Codex: execute o login oficial no terminal e siga o navegador. A conferência local não verifica identidade ou workspace.",
+    "chatgpt-desktop-auth": "ChatGPT Desktop: faça o login no aplicativo e declare quando terminar. A sessão não é verificada automaticamente.",
     "gh-auth": "GitHub: o GitHub CLI abre a página oficial de login. Você digita lá o código que este assistente mostrar.",
     "claude-cli-auth": "Claude Code: abrimos um terminal com o comando oficial “claude auth login”, que leva você ao navegador.",
     "claude-desktop-auth": "Claude Desktop: você entra pelo próprio aplicativo e confirma aqui quando terminar.",
@@ -130,6 +136,14 @@
     }
   },
   "actions": {
+    "codex-login": {
+      "title": "Login no Codex",
+      "guide": "Execute codex login num terminal e siga o navegador oficial. Depois verifique novamente. Nenhuma credencial deve ser fornecida ao instalador."
+    },
+    "chatgpt-desktop-login-confirm": {
+      "title": "Declaração do login no ChatGPT Desktop",
+      "guide": "Abra ChatGPT Desktop pelo menu Iniciar, conclua o login oficial e confirme. Isto registra a sua declaração; não verifica automaticamente sessão, conta ou workspace."
+    },
     "git-identity": {
       "title": "Identidade do Git",
       "guide": "O Git grava o seu nome e o seu e-mail em cada commit. Eles vão para a configuração global do Git deste usuário. Isto não é login e não pede senha."
