@@ -339,6 +339,37 @@ class FrontendSelectionTests(unittest.TestCase):
 
 @unittest.skipUnless(os.name == "posix", "grupos de processos requerem POSIX")
 class EngineCleanupTests(unittest.TestCase):
+    def assert_process_exited(self, stat: Path) -> None:
+        try:
+            snapshot = stat.read_text()
+        except FileNotFoundError:
+            return  # O processo pode desaparecer antes da leitura, inclusive após um probe.
+        self.assertEqual(snapshot.rsplit(") ", 1)[1].split()[0], "Z",
+                         "filho continua executando depois do cancelamento")
+
+    def test_exit_probe_handles_disappearance_without_hiding_live_process_or_errors(self) -> None:
+        stat = mock.Mock(spec=Path)
+        # A leitura pode falhar mesmo quando um probe anterior encontrou o processo.
+        stat.exists.return_value = True
+        self.assertTrue(stat.exists())
+        stat.read_text.side_effect = FileNotFoundError("processo terminou")
+        self.assert_process_exited(stat)
+        stat.read_text.assert_called_once_with()
+
+        stat.read_text.side_effect = None
+        stat.read_text.return_value = "123 (child) Z 1 2 3"
+        self.assert_process_exited(stat)
+        for state in ("R", "S", "D", "T"):
+            with self.subTest(state=state):
+                stat.read_text.return_value = "123 (child) " + state + " 1 2 3"
+                with self.assertRaises(AssertionError):
+                    self.assert_process_exited(stat)
+        for error in (PermissionError, OSError):
+            with self.subTest(error=error.__name__):
+                stat.read_text.side_effect = error("leitura não comprova término")
+                with self.assertRaises(error):
+                    self.assert_process_exited(stat)
+
     def test_cancel_before_start_does_not_launch_engine(self) -> None:
         run = ui.EngineRun(Path("unused.py"), [])
         run.cancel()
@@ -372,9 +403,7 @@ class EngineCleanupTests(unittest.TestCase):
             self.assertEqual(run.run(cancel).exit_code, 130)
             self.assertLess(time.monotonic() - started, 8)
             self.assertIsNotNone(run.process.poll())
-            child_stat = Path(f"/proc/{child_pids[0]}/stat")
-            if child_stat.exists():
-                self.assertTrue(child_stat.read_text().split(") ", 1)[1].startswith("Z"))
+            self.assert_process_exited(Path(f"/proc/{child_pids[0]}/stat"))
 
             # Simula pedido recebido enquanto Popen ainda não entregou o processo ao responsável.
             run = ui.EngineRun(engine, [])
