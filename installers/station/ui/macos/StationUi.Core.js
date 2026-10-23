@@ -51,7 +51,7 @@ var StationCore = (function () {
         s.protocolIncomplete = !s.ended;
         s.protocolMismatch = s.ended && s.exitCode !== code;
         if (!s.ended) { s.exitCode = code === 2 || code === 4 ? code : 130; }
-        else if (s.exitCode === 0 && code !== 0) {
+        else if ([0, 3, 5].indexOf(s.exitCode) >= 0 && code !== 0 && code !== s.exitCode) {
             s.exitCode = code < 0 || code === 130 ? 130 : 1;
         }
         if ([0, 3, 5].indexOf(s.exitCode) >= 0 && Object.keys(s.status).some(function (key) {

@@ -52,6 +52,15 @@ assert(core.summary(s, texts).includes('divergiram'));
 s = core.state(); s.ended = true; s.exitCode = 0;
 assert.strictEqual(core.complete(s, 0, texts).exitCode, 0);
 assert.strictEqual(s.protocolMismatch, false);
+[3, 5].forEach(function (eventCode) {
+    [1, 130, -15].forEach(function (processCode) {
+        const pending = core.state();
+        core.apply(pending, event(1, 'run_end', '', '', {exitCode: eventCode, steps: {}}));
+        assert.strictEqual(core.complete(pending, processCode, texts).exitCode, processCode === 1 ? 1 : 130);
+        assert(pending.protocolMismatch);
+        assert(core.summary(pending, texts).includes('divergiram'));
+    });
+});
 s = core.state();
 core.apply(s, event(1, 'action_required', 'gh-auth', 'action_required',
     {id: 'gh-login', kind: 'browser_code', code: 'FAKE-1234', blocking: true}));
