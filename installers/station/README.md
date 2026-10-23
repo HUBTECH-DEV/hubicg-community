@@ -39,7 +39,11 @@ CLI status probes, preserving edited files and repeatable installation.
 Applying the engine may install Git, GitHub CLI and Claude tools, configure
 Git identity and write the chosen clone/Claude directories. Read the contract
 before applying. Linux reports Claude Desktop as unsupported. macOS shell
-support is experimental; this change includes no macOS GUI or full Mac acceptance.
+support and the M1 [native interface](ui/README.md) are experimental. On macOS,
+double-click `ui/macos/Instalar-HubICG-Estacao.command`; it uses the shell engine
+from the same checkout. Visual acceptance is pending; automated checks are not
+evidence of GUI acceptance or real authentication. See the
+[macOS validation guide](../../docs/runbooks/station-ui-macos-validation.md).
 
 Run `make station-test` for isolated engine/interface tests. They use fake
 executables and temporary HOME/configuration paths, without real login,

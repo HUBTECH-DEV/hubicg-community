@@ -38,6 +38,7 @@ vendored. Runtime integration uses external platform tools as subprocesses:
 | xdg-utils, GIO | Desktop launch and shortcuts | MIT / LGPL-2.1-or-later | Optional platform prerequisites |
 | Claude Code / Claude Desktop | Official tools and login | Anthropic proprietary terms | Downloaded only on explicit application; not bundled |
 | Homebrew | Experimental macOS shell path | BSD-2-Clause | External prerequisite; not installed by tests |
+| AppleScript, JXA, Foundation, AppKit | Experimental macOS M1 interface | Apple platform terms | Built-in platform prerequisites; not bundled |
 
 Python's standard library handles the public agent export and Linux interface;
 there is no added third-party Python runtime dependency. Tests use local fake

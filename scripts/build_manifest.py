@@ -52,6 +52,7 @@ PATHS += sorted(
 PATHS += [
     "scripts/build_station_agents.py", ".github/workflows/station-installer.yml",
     "docs/architecture/station-installer-engine.md", "docs/schemas/station-event.schema.json",
+    ".github/workflows/station-macos.yml", "docs/runbooks/station-ui-macos-validation.md",
 ]
 
 
